@@ -5,7 +5,7 @@ module.exports = function(grunt) {
         separator: ';'
       },
       dist: {
-        src: ['lib/slide.js'],
+        src: ['lib/slide-crypto.js', 'lib/slide.js'],
         dest: 'dist/slide.js'
       }
     }
@@ -14,4 +14,3 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-concat');
   grunt.registerTask('default', ['concat']);
 }
-
