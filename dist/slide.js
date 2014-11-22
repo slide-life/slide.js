@@ -1,3 +1,4 @@
+Slide.crypto = new Object();
 function slide_crypto() {
     this.symmetricAlgorithm = "aes-twofish";
     this.asyncTimeout = 10;
@@ -137,7 +138,7 @@ Bucket.prototype.prompt = function (cb) {
     $('#modal').modal('toggle');
 
     this.listen(function (data) {
-        cb(data.fields, data.cipherkey, data.sec);
+        cb(data.fields, data.cipherkey);
         $('#modal').modal('toggle');
         frame.remove();
     });
@@ -170,7 +171,7 @@ var Slide = {
                     data: JSON.stringify(fields),
                     success: function (data) {
                         var bucket = new Bucket(data, keys.sec);
-                        cb(bucket);
+                        cb(bucket, keys);
                     }
             });
         }, null, 0);
