@@ -52,16 +52,16 @@ b,c,d){var e=sjcl.json,f=e.Y.apply(e,arguments);return e.encode(f)},X:function(a
 a=a.replace(/^\{|\}$/g,"").split(/,/);var b={},c,d;for(c=0;c<a.length;c++)(d=a[c].match(/^(?:(["']?)([a-z][a-z0-9]*)\1):(?:(\d+)|"([a-z0-9+\/%*_.@=\-]*)")$/i))||q(new sjcl.exception.invalid("json decode: this isn't json!")),b[d[2]]=d[3]?parseInt(d[3],10):d[2].match(/^(ct|salt|iv)$/)?sjcl.codec.base64.toBits(d[4]):unescape(d[4]);return b},e:function(a,b,c){a===t&&(a={});if(b===t)return a;for(var d in b)b.hasOwnProperty(d)&&(c&&(a[d]!==t&&a[d]!==b[d])&&q(new sjcl.exception.invalid("required parameter overridden")),
 a[d]=b[d]);return a},ea:function(a,b){var c={},d;for(d in a)a.hasOwnProperty(d)&&a[d]!==b[d]&&(c[d]=a[d]);return c},da:function(a,b){var c={},d;for(d=0;d<b.length;d++)a[b[d]]!==t&&(c[b[d]]=a[b[d]]);return c}};sjcl.encrypt=sjcl.json.encrypt;sjcl.decrypt=sjcl.json.decrypt;sjcl.misc.ca={};
 sjcl.misc.cachedPbkdf2=function(a,b){var c=sjcl.misc.ca,d;b=b||{};d=b.iter||1E3;c=c[a]=c[a]||{};d=c[d]=c[d]||{firstSalt:b.salt&&b.salt.length?b.salt.slice(0):sjcl.random.randomWords(2,0)};c=b.salt===t?d.firstSalt:b.salt;d[c]=d[c]||sjcl.misc.pbkdf2(a,c,b.iter);return{key:d[c].slice(0),salt:c.slice(0)}};
-;var slide_crypto = function () {
+;var Slide.crypto = function () {
     this.symmetricAlgorithm = "aes-twofish";
     this.asyncTimeout = 10;
 
     this.generateKeys = function(bits, pass, callback, carry, depth) {
         depth = typeof depth !== 'undefined' ? depth : 0;
         pass = typeof pass !== 'undefined' ? pass : ''; //in case of pin
-        slide.crypto.generateKeysF(bits, pass, function(keys, carry) {
+        Slide.crypto.generateKeysF(bits, pass, function(keys, carry) {
             if (keys == null && depth < 3) {
-                slide.crypto.generateKeys(bits, pass, callback, carry, depth + 1);
+                Slide.crypto.generateKeys(bits, pass, callback, carry, depth + 1);
             } else {
                 callback(keys, carry);
             }
@@ -78,36 +78,36 @@ sjcl.misc.cachedPbkdf2=function(a,b){var c=sjcl.misc.ca,d;b=b||{};d=b.iter||1E3;
             sjcl.ecc.elGamal.generateKeysAsync(192, 10, function(keys, carrier) {
                 sjcl.ecc.elGamal.generateKeysAsync(384, 10, function(keys, carrier) {
                     setTimeout(function() {
-                        slide.crypto.processKeys(keys, carrier);
-                    }, slide.crypto.asyncTimeout);
+                        Slide.crypto.processKeys(keys, carrier);
+                    }, Slide.crypto.asyncTimeout);
                 }, carrier);
             }, carrier);
         } else {
             sjcl.ecc.elGamal.generateKeysAsync(bits, 10, function(keys, carrier) {
                 setTimeout(function() {
-                    slide.crypto.processKeys(keys, carrier);
-                }, slide.crypto.asyncTimeout);
+                    Slide.crypto.processKeys(keys, carrier);
+                }, Slide.crypto.asyncTimeout);
             }, carrier);
         }
     };
 
     this.processKeys = function(keys, carrier) {
-        var sec = slide.crypto.serializeSecretKey(keys.sec);
-        var pub = slide.crypto.serializePublicKey(keys.pub);
-        var val = slide.crypto.checkKeypair(keys.pub, sec);
+        var sec = Slide.crypto.serializeSecretKey(keys.sec);
+        var pub = Slide.crypto.serializePublicKey(keys.pub);
+        var val = Slide.crypto.checkKeypair(keys.pub, sec);
         if (!val) {
             var cb = carrier.callback;
             carrier = carrier.outercarrier;
             setTimeout(function() {
                 cb(null, carrier);
-            }, slide.crypto.asyncTimeout);
+            }, Slide.crypto.asyncTimeout);
             return;
         }
         carrier.pub = pub;
         carrier.sec = sec;
         setTimeout(function() {
-            slide.crypto.processKeysF(carrier);
-        }, slide.crypto.asyncTimeout);
+            Slide.crypto.processKeysF(carrier);
+        }, Slide.crypto.asyncTimeout);
     };
 
     this.processKeysF = function(carrier) {
@@ -120,7 +120,7 @@ sjcl.misc.cachedPbkdf2=function(a,b){var c=sjcl.misc.ca,d;b=b||{};d=b.iter||1E3;
         carrier = carrier.outercarrier;
         setTimeout(function() {
             cb(keys, carrier);
-        }, slide.crypto.asyncTimeout);
+        }, Slide.crypto.asyncTimeout);
     };
 
     this.randomKeyString = function(len) {
@@ -133,8 +133,8 @@ sjcl.misc.cachedPbkdf2=function(a,b){var c=sjcl.misc.ca,d;b=b||{};d=b.iter||1E3;
     };
 
     this.encryptString = function(text, pubkey, callback, carry) {
-        var rand = slide.crypto.randomKeyString(64);
-        var pk = (typeof pubkey == "string") ? slide.crypto.deserializePublicKey(pubkey) : pubkey;
+        var rand = Slide.crypto.randomKeyString(64);
+        var pk = (typeof pubkey == "string") ? Slide.crypto.deserializePublicKey(pubkey) : pubkey;
         var carrier = {
             "cleartext": text,
             "callback": callback,
@@ -144,21 +144,21 @@ sjcl.misc.cachedPbkdf2=function(a,b){var c=sjcl.misc.ca,d;b=b||{};d=b.iter||1E3;
             "enckey": new Object()
         };
         setTimeout(function(){
-            slide.crypto.encryptStringF(carrier);
-        }, slide.crypto.asyncTimeout);
+            Slide.crypto.encryptStringF(carrier);
+        }, Slide.crypto.asyncTimeout);
     };
 
     this.encryptStringF = function(carrier) {
         var pk = carrier.pubkey;
-        slide.crypto.kemAsync(pk, function(symkey, carrier) {
-            var enckey = slide.crypto.symEncrypt(carrier.rand, symkey.key);
-            var keyhash = slide.crypto.hashPublicKey(pk);
+        Slide.crypto.kemAsync(pk, function(symkey, carrier) {
+            var enckey = Slide.crypto.symEncrypt(carrier.rand, symkey.key);
+            var keyhash = Slide.crypto.hashPublicKey(pk);
             carrier.enckey = { enckey: enckey, keytag: symkey.tag, keyhash: keyhash };
-            slide.crypto.symEncryptAsync(carrier.cleartext, carrier.rand, function(ciphertext, carrier) {
+            Slide.crypto.symEncryptAsync(carrier.cleartext, carrier.rand, function(ciphertext, carrier) {
                 var msg = { "enckey": carrier.enckey, "ciphertext": ciphertext };
                 setTimeout(function() {
                     carrier.callback(msg, carrier.outercarrier);
-                }, slide.crypto.asyncTimeout);
+                }, Slide.crypto.asyncTimeout);
             }, carrier);
         }, carrier);
     };
@@ -178,7 +178,7 @@ sjcl.misc.cachedPbkdf2=function(a,b){var c=sjcl.misc.ca,d;b=b||{};d=b.iter||1E3;
 
     this.symEncryptAsync = function(text, rand, cb, carrier) {
         //fuck it
-        cb(slide.crypto.symEncrypt(text, rand), carrier);
+        cb(Slide.crypto.symEncrypt(text, rand), carrier);
     };
 
     this.hashPublicKey = function(pub) {
@@ -196,12 +196,12 @@ sjcl.misc.cachedPbkdf2=function(a,b){var c=sjcl.misc.ca,d;b=b||{};d=b.iter||1E3;
     this.decryptString = function(text, cipherkey, sec, cb, carrier) {
         //decrypt enckey -sym> rand
         //decrypt text -rand> clear
-        sec = slide.crypto.deserializeSecretKey(sec);
+        sec = Slide.crypto.deserializeSecretKey(sec);
         var sym = sec.unkem(sjcl.codec.hex.toBits(cipherkey.keytag));
         var rand = sjcl.decrypt(sjcl.codec.hex.fromBits(sym), cipherkey.enckey);
         setTimeout(function() {
             cb(sjcl.decrypt(rand, text), carrier);
-        }, slide.crypto.asyncTimeout);
+        }, Slide.crypto.asyncTimeout);
     };
 
     this.serializeSecretKey = function(sec) {
@@ -237,8 +237,8 @@ sjcl.misc.cachedPbkdf2=function(a,b){var c=sjcl.misc.ca,d;b=b||{};d=b.iter||1E3;
     };
 
     this.checkKeypair = function(pub, sec) {
-        var v_pub = slide.crypto.checkPublicKey(pub);
-        var v_sec = slide.crypto.checkSecretKey(sec);
+        var v_pub = Slide.crypto.checkPublicKey(pub);
+        var v_sec = Slide.crypto.checkSecretKey(sec);
         return (v_pub && v_sec);
     };
 
@@ -253,15 +253,15 @@ sjcl.misc.cachedPbkdf2=function(a,b){var c=sjcl.misc.ca,d;b=b||{};d=b.iter||1E3;
     this.checkSecretKey = function(sec) {
         if (typeof sec == "String" || typeof sec == "string") {
             try {
-                var dser = slide.crypto.deserializeSecretKey(sec);
+                var dser = Slide.crypto.deserializeSecretKey(sec);
                 return ((typeof dser == "object" || typeof dser == "Object") && dser != null);
             } catch (e) {
                 return false;
             }
         } else {
             try {
-                var ser = slide.crypto.serializeSecretKey(sec);
-                var dser = slide.crypto.deserializeSecretKey(ser);
+                var ser = Slide.crypto.serializeSecretKey(sec);
+                var dser = Slide.crypto.deserializeSecretKey(ser);
                 return ((typeof dser == "object" || typeof dser == "Object") && dser != null);
             } catch (e) {
                 return false;
