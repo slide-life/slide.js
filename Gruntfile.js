@@ -5,7 +5,7 @@ module.exports = function(grunt) {
         separator: ';'
       },
       dist: {
-        src: ['lib/slide-crypto.js', 'lib/slide.js'],
+        src: ['bower_components/sjcl/sjcl.js', 'lib/slide-crypto.js', 'lib/slide.js'],
         dest: 'dist/slide.js'
       }
     }
