@@ -93,6 +93,8 @@ window.Slide = {
         this.createBucket(fields, cb);
     }
 };
+window.Channel = Channel;
+window.ReceivedBucket = ReceivedBucket;
 },{"./slide/bucket":2,"./slide/channel":3,"./slide/crypto":4,"./slide/received-bucket":5}],2:[function(require,module,exports){
 "use strict";
 function Bucket (data, sec) {
