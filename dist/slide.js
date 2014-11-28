@@ -56,6 +56,8 @@ sjcl.misc.cachedPbkdf2=function(a,b){var c=sjcl.misc.ca,d;b=b||{};d=b.iter||1E3;
 "use strict";
 var Crypto = require("./slide/crypto")["default"];
 var Bucket = require("./slide/bucket")["default"];
+var Channel = require("./slide/channel")["default"];
+var ReceivedBucket = require("./slide/received-bucket")["default"];
 
 $('body').append('<div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
@@ -91,7 +93,7 @@ window.Slide = {
         this.createBucket(fields, cb);
     }
 };
-},{"./slide/bucket":2,"./slide/crypto":3}],2:[function(require,module,exports){
+},{"./slide/bucket":2,"./slide/channel":3,"./slide/crypto":4,"./slide/received-bucket":5}],2:[function(require,module,exports){
 "use strict";
 function Bucket (data, sec) {
     this.id = data.id;
@@ -137,6 +139,35 @@ Bucket.prototype.prompt = function (cb) {
 
 exports["default"] = Bucket;
 },{}],3:[function(require,module,exports){
+"use strict";
+function Channel(blocks) {
+    this.blocks = blocks;
+}
+
+Channel.prototype.open = function (cb) {
+    Slide.crypto.generateKeys(384, '', function(keys, carry) {
+        this.sec = keys.sec;
+        this.pub = keys.pub;
+        $.ajax({
+            type: 'POST',
+            url: 'http://' + HOST + '/channels',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                key: keys.pub,
+                blocks: blocks
+            }),
+            success: function (data) {
+                var channel = data.__id.$oid;
+                cb.onCreate(channel);
+                var socket = new WebSocket('ws://' + HOST + '/channels/' + channel + '/listen');
+                socket.onmessage = cb.onBlockReceived;
+            }
+        });
+    }, null, 0);
+}
+
+exports["default"] = Channel;
+},{}],4:[function(require,module,exports){
 "use strict";
 exports["default"] = function () {
     this.symmetricAlgorithm = "aes-twofish";
@@ -355,4 +386,54 @@ exports["default"] = function () {
         }
     };
 };
+},{}],5:[function(require,module,exports){
+"use strict";
+var sec = new Object();
+var bucketTemplate;
+var blockItemTemplate;
+var blocks;
+
+function ReceivedBucket (data, sec) {
+    this.id = data.id; //TODO: map out POST /channels/:id -> ruby -> ws notify -> here, field mapping
+    this.publicKey = data.key;
+    this.fields = data.fields;
+    this.cipherKey = data.cipherkey;
+    this.privateKey = sec;
+    this.decoded = false;
+    return this;
+}
+
+ReceivedBucket.prototype.decodeF = function (blocks, cb, iter) {
+    if (iter < blocks.len - 1) {
+        Slide.crypto.decryptString(blocks[iter], this.cipherKey, this.privateKey, function(clear, carry) {
+            this.fields[blocks[iter]] = clear;
+            this.decodeF(blocks, cb, iter + 1);
+        }, null);
+    } else {
+        Slide.crypto.decryptString(blocks[iter], this.cipherKey, this.privateKey, function(clear, carry) {
+            this.fields[blocks[iter]] = clear;
+            cb();
+        });
+    }
+};
+
+ReceivedBucket.prototype.decode = function (cb) {
+    if (!this.decoded) {
+        this.decoded = true;
+        this.decodeF(blocks, cb, 0);
+    }
+};
+
+ReceivedBucket.prototype.html = function (cb) {
+    this.decode(function(){
+        str = "";
+        for (var a in this.fields) {
+            str += a + ":" + this.fields[a];
+            str += "<hr>";
+        }
+        cb(Mustache.render(bucketTemplate, {content: str}));
+    });
+};
+
+exports["default"] = ReceivedBucket;
 },{}]},{},[1]);
