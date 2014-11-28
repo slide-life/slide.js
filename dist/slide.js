@@ -97,8 +97,9 @@ var Channel = require("./slide/Channel")["default"];
 
 $('body').append('<div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
-window.HOST = 'slide-dev.ngrok.com'; // TODO: remove HOST global
 window.Slide = {
+    host: 'api-sandbox.slide.life',
+
     crypto: new Crypto(),
 
     extractFields: function (form) {
@@ -136,7 +137,7 @@ window.Slide = {
     getBlocks: function (cb) {
         $.ajax({
             type: 'GET',
-            url: 'http://' + HOST + '/blocks',
+            url: 'http://' + Slide.host + '/blocks',
             contentType: 'application/json',
             success: cb
         });
@@ -157,7 +158,7 @@ Channel.create = function (blocks, cb) {
         //post
         $.ajax({
             type: 'POST',
-            url: 'http://' + HOST + '/channels',
+            url: 'http://' + Slide.host + '/channels',
             contentType: 'application/json',
             data: JSON.stringify({
                 key: keys.pub,
@@ -171,13 +172,13 @@ Channel.create = function (blocks, cb) {
 };
 
 Channel.prototype.getQRCodeURL = function () {
-    return 'http://' + HOST + '/channels/' + this.id + '/qr';
+    return 'http://' + Slide.host + '/channels/' + this.id + '/qr';
 }
 
 Channel.prototype.updateState = function (state) {
     $.ajax({
         type: 'PUT',
-        url: 'http://' + HOST + '/channels/' + this.id,
+        url: 'http://' + Slide.host + '/channels/' + this.id,
         contentType: 'application/json',
         data: JSON.stringify({
             open: state
@@ -186,8 +187,7 @@ Channel.prototype.updateState = function (state) {
 };
 
 Channel.prototype.listen = function (cb) {
-    var socket = new WebSocket('ws://' + HOST + '/channels/' + this.id + '/listen');
-    var socket = new WebSocket('ws://' + HOST + '/buckets/' + this.id + '/listen');
+    var socket = new WebSocket('ws://' + Slide.host + '/buckets/' + this.id + '/listen');
     socket.onmessage = function (event) {
         cb(JSON.parse(event.data));
     };
@@ -206,7 +206,7 @@ function Bucket (data, sec) {
 Bucket.create = function (fields, cb) {
     $.ajax({
         type: 'POST',
-        url: 'http://' + HOST + '/buckets', 
+        url: 'http://' + Slide.host + '/buckets',
         contentType : 'application/json',
         data: JSON.stringify(fields),
         success: function (data) {
@@ -217,7 +217,7 @@ Bucket.create = function (fields, cb) {
 };
 
 Bucket.prototype.listen = function (cb) {
-    var socket = new WebSocket('ws://' + HOST + '/buckets/' + this.id + '/listen');
+    var socket = new WebSocket('ws://' + Slide.host + '/buckets/' + this.id + '/listen');
     socket.onmessage = function (event) {
         cb(JSON.parse(event.data));
     };
