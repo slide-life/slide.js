@@ -245,7 +245,7 @@ exports["default"] = function () {
             ret.key = pk;
             ret.cipherkey = enckey;
             ret.fields = new Object();
-            for (k in carrier.cleartext) {
+            for (var k in carrier.cleartext) {
                 Slide.crypto.symEncryptAsync(carrier.cleartext[k], carrier.rand, function(ciphertext, carrier) {
                     ret.fields[k] = ciphertext;
                 }, carrier);
