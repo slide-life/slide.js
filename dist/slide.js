@@ -172,7 +172,9 @@ Channel.prototype.open = function (cb) {
             success: function (data) {
                 self.id = data.id;
                 cb.onCreate();
-                self.listen(cb.listen);
+                self.updateState(true, function () {
+                    self.listen(cb.listen);
+                });
             }
         });
     }, null, this);
