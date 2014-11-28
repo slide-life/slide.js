@@ -93,10 +93,6 @@ window.Slide = {
         this.createBucket(fields, cb);
     },
 
-    createChannel: function (blocks, cb) {
-        Channel.create(blocks, cb);
-    },
-
     getBlocks: function (cb) {
         $.ajax({
             type: 'GET',
@@ -104,7 +100,9 @@ window.Slide = {
             contentType: 'application/json',
             success: cb
         });
-    }
+    },
+
+    Channel: Channel
 };
 },{"./slide/bucket":2,"./slide/channel":3,"./slide/crypto":4}],2:[function(require,module,exports){
 "use strict";
@@ -153,31 +151,32 @@ Bucket.prototype.prompt = function (cb) {
 exports["default"] = Bucket;
 },{}],3:[function(require,module,exports){
 "use strict";
-function Channel (data, sec) {
-    this.id = data.id;
-    this.publicKey = data.key;
-    this.privateKey = sec;
+function Channel(blocks) {
+    this.blocks = blocks;
     return this;
 }
 
-Channel.create = function (blocks, cb) {
+Channel.prototype.open = function (cb) {
+    var self = this;
     Slide.crypto.generateKeys(384, '', function (keys, carry) {
-        sec = keys.sec;
-        //post
+        self.publicKey = keys.pub;
+        self.privateKey = keys.sec;
         $.ajax({
             type: 'POST',
             url: 'http://' + Slide.host + '/channels',
             contentType: 'application/json',
             data: JSON.stringify({
-                key: keys.pub,
-                blocks: blocks
+                key: self.publicKey,
+                blocks: self.blocks
             }),
             success: function (data) {
-                cb(new Channel(data, sec));
+                self.id = data.id;
+                cb.onCreate();
+                self.listen(cb.listen);
             }
         });
-    }, null, 0);
-};
+    }, null, this);
+}
 
 Channel.prototype.getWSURL = function() {
     return 'ws://' + Slide.host + '/channels/' + this.id + '/listen';
