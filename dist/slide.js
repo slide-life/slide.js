@@ -305,6 +305,28 @@ exports["default"] = function () {
         }, carrier);
     };
 
+    this.encryptDataSync = function(data, pubkey) {
+        var rand = Slide.crypto.randomKeyString(64);
+        var pk = (typeof pubkey == "string") ? Slide.crypto.deserializePublicKey(pubkey) : pubkey;
+        var keyData = pk.kem();
+        var key = sjcl.codec.hex.fromBits(keyData.key);
+        var tag = sjcl.codec.hex.fromBits(keyData.tag);
+        var enckey = Slide.crypto.symEncrypt(rand, key);
+        var keyhash = Slide.crypto.hashPublicKey(pk);
+        var ret = { key: Slide.crypto.deserializePublicKey(pk),
+            cipherkey: {
+                enckey: enckey,
+                keytag: tag,
+                keyhash: keyhash
+            },
+            fields: new Object()
+        };
+        for (var k in data) {
+            ret.fields[k] = Slide.crypto.symEncrypt(data[k], rand);
+        }
+        return ret;
+    };
+
     this.kemAsync = function(pub, cb, carrier) {
         //fuck it
         var keyData = pub.kem();
