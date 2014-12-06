@@ -339,6 +339,19 @@ exports["default"] = function () {
         return hash1;
     };
 
+    this.decryptData = function(data, cipherkey, sec, cb, carrier) {
+        var ret = { 'decrypted': 0 };
+        for (var k in data.fields) {
+            Slide.crypto.decryptString(data.fields[k], cipherkey, sec, (function(clear, carry) {
+                ret.fields[carry] = clear;
+                ret.decrypted++;
+                if (ret.decrypted == Object.keys(data.fields).length) {
+                    cb(ret, carrier);
+                }
+            }), k);
+        }
+    };
+
     this.decryptStringSync = function(text, cipherkey, sec) {
         sec = Slide.crypto.deserializeSecretKey(sec);
         var sym = sec.unkem(sjcl.codec.hex.toBits(cipherkey.keytag));
