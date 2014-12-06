@@ -304,7 +304,7 @@ exports["default"] = function () {
             fields: new Object()
         };
         for (var k in data) {
-            ret.fields[k] = Slide.crypto.s(data[k], rand);
+            ret.fields[k] = Slide.crypto.symEncrypt(data[k], rand);
         }
         return ret;
     };
