@@ -340,7 +340,7 @@ exports["default"] = function () {
     };
 
     this.decryptData = function(data, cipherkey, sec, cb, carrier) {
-        var ret = { 'decrypted': 0 };
+        var ret = { 'decrypted': 0, 'fields': {} };
         for (var k in data.fields) {
             Slide.crypto.decryptString(data.fields[k], cipherkey, sec, (function(clear, carry) {
                 ret.fields[carry] = clear;
