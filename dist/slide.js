@@ -67,17 +67,23 @@ Channel.prototype.create = function (cb) {
             success: function (data) {
                 self.id = data.id;
 
-                if (!!cb.onCreate) {
-                    cb.onCreate();
-                }
+		if( cb.onCreate || cb.listen ) {
+		  if (!!cb.onCreate) {
+		      cb.onCreate();
+		  }
 
-                if (!!cb.listen) {
-                    if (cb.listen === true) {
-                        self.listen();
-                    } else {
-                        self.listen(cb.listen);
-                    }
-                }
+		  if (!!cb.listen) {
+		      if (cb.listen === true) {
+			  self.listen();
+		      } else {
+			  self.listen(cb.listen);
+		      }
+		  }
+		} else {
+		  var channel = new Channel(data.blocks);
+		  channel.id = data.id;
+		  cb(channel, keys);
+		}
             }
         });
     }, null, this);
@@ -124,18 +130,20 @@ Channel.prototype.listen = function (cb) {
 };
 
 Channel.prototype.prompt = function (cb) {
+    var self = this;
     this.create({
         onCreate: function () {
             var frame = $('<iframe/>', {
-                src: 'http://localhost:8000/frames/prompt.html?bucket=' + this.id,
+                src: 'http://localhost:8000/frames/prompt.html?channel=' + self.id,
                 id: 'slide-bucket-frame'
             });
             $('#modal .modal-body').append(frame);
             $('#modal').modal('toggle');
         },
-        listen: function () {
-            $('#modal').modal('toggle');
-            frame.remove();
+        listen: function (data) {
+	  $('#modal').modal('toggle');
+	  try { frame.remove(); } catch(err) { /* frame may not be defined */ }
+	  cb && cb(data.fields, data.cipherkey);
         }
     });
 };
