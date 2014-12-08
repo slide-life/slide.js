@@ -28617,17 +28617,17 @@ Channel.prototype.create = function (cb) {
             success: function (data) {
                 self.id = data.id;
 
-        		if (!!cb.onCreate) {
-        		    cb.onCreate(self, keys);
-        		}
+                if (!!cb.onCreate) {
+                  cb.onCreate(self, keys);
+                }
 
-        		if (!!cb.listen) {
-        		    if (cb.listen === true) {
-        			self.listen();
-        		    } else {
-        			self.listen(cb.listen);
-        		    }
-        		}
+                if (!!cb.listen) {
+                  if (cb.listen === true) {
+                    self.listen();
+                  } else {
+                    self.listen(cb.listen);
+                  }
+                }
             }
         });
     }, null, this);
@@ -28705,9 +28705,9 @@ Channel.prototype.getResponses = function(cb) {
       contentType: 'application/json',
       success: function (data) {
         cb(data.responses.map(function(response) {
-	  response.fields = Slide.crypto.decryptData(response.fields, privateKey);
-	  return response;
-	}));
+          response.fields = Slide.crypto.decryptData(response.fields, privateKey);
+          return response;
+        }));
       }
   });
 };
