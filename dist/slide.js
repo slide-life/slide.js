@@ -28604,8 +28604,8 @@ Channel.prototype.create = function (cb) {
     Slide.crypto.generateKeys(function (keys) {
         self.publicKey = keys.publicKey;
         self.privateKey = keys.privateKey;
-	var pem = forge.util.encode64(forge.pki.publicKeyToPem(self.publicKey));
-	window.pem = forge.util.decode64(pem);
+    	var pem = forge.util.encode64(forge.pki.publicKeyToPem(self.publicKey));
+    	window.pem = forge.util.decode64(pem);
         $.ajax({
             type: 'POST',
             url: 'http://' + Slide.host + '/channels',
@@ -28617,17 +28617,17 @@ Channel.prototype.create = function (cb) {
             success: function (data) {
                 self.id = data.id;
 
-		if (!!cb.onCreate) {
-		    cb.onCreate(self, keys);
-		}
+        		if (!!cb.onCreate) {
+        		    cb.onCreate(self, keys);
+        		}
 
-		if (!!cb.listen) {
-		    if (cb.listen === true) {
-			self.listen();
-		    } else {
-			self.listen(cb.listen);
-		    }
-		}
+        		if (!!cb.listen) {
+        		    if (cb.listen === true) {
+        			self.listen();
+        		    } else {
+        			self.listen(cb.listen);
+        		    }
+        		}
             }
         });
     }, null, this);
@@ -28705,7 +28705,7 @@ Channel.prototype.getResponses = function(cb) {
       contentType: 'application/json',
       success: function (data) {
         cb(data.responses.map(function(response) {
-	  response.fields = Slide.crypto.decryptData(response.fields, this.privateKey);
+	  response.fields = Slide.crypto.decryptData(response.fields, privateKey);
 	  return response;
 	}));
       }
