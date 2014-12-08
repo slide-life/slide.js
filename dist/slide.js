@@ -28589,6 +28589,16 @@ function Channel (blocks) {
     return this;
 }
 
+Channel.fromObject = function (object) {
+    var channel = new Channel();
+    for (var key in object) {
+        if (object.hasOwnProperty(key)) {
+            channel[key] = object[key];
+        }
+    }
+    return channel;
+};
+
 Channel.prototype.create = function (cb) {
     var self = this;
     Slide.crypto.generateKeys(function (keys) {
