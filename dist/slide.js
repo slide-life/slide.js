@@ -28697,6 +28697,21 @@ Channel.prototype.prompt = function (cb) {
     else this.create(listeners);
 };
 
+Channel.prototype.getResponses = function(cb) {
+  var privateKey = this.privateKey;
+  $.ajax({
+      type: 'GET',
+      url: 'http://' + Slide.host + '/channels/' + this.id,
+      contentType: 'application/json',
+      success: function (data) {
+        cb(data.responses.map(function(response) {
+	  response.fields = Slide.crypto.decryptData(response.fields, this.privateKey);
+	  return response;
+	}));
+      }
+  });
+};
+
 exports["default"] = Channel;
 },{}],3:[function(require,module,exports){
 "use strict";
