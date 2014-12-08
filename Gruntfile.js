@@ -24,12 +24,16 @@ module.exports = function (grunt) {
       }
     },
 
+    exec: {
+      "bundle": "( cd bower_components/forge; npm run bundle )"
+    },
+
     concat: {
       options: {
         separator: ';'
       },
       dist: {
-        src: ['bower_components/forge/js/forge.min.js', 'build/browser.js'],
+        src: ['bower_components/forge/js/forge.bundle.js', 'build/browser.js'],
         dest: 'dist/slide.js'
       }
     }
@@ -39,5 +43,6 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-contrib-concat');
   grunt.loadNpmTasks('grunt-es6-module-transpiler');
-  grunt.registerTask('default', ['clean', 'transpile', 'browserify', 'concat']);
+  grunt.loadNpmTasks('grunt-exec');
+  grunt.registerTask('default', ['clean', 'transpile', 'browserify', 'exec', 'concat']);
 };
