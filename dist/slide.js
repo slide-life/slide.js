@@ -28663,9 +28663,8 @@ Channel.prototype.listen = function (cb) {
     };
 };
 
-Channel.prototype.prompt = function (keys, bucketPrompt) {
-    var cb;
-    if( !bucketPrompt ) cb = keys;
+Channel.prototype.prompt = function (cb) {
+    var bucketPrompt = !cb;
     var self = this;
     var listeners = {
         onCreate: function () {
