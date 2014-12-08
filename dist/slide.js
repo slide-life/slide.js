@@ -28723,13 +28723,17 @@ exports["default"] = function () {
       return pub.encrypt(text);
     };
 
-    this.encryptData = function(data, pem) {
+    this.encryptDataWithKey = function(data, pub) {
       var encrypted = {};
-      var pub = forge.pki.publicKeyFromPem(pem);
       for( var key in data ) {
         encrypted[key] = forge.util.encode64(this.encryptString(data[key], pub));
       }
       return encrypted;
+    };
+
+    this.encryptData = function(data, pem) {
+      var pub = forge.pki.publicKeyFromPem(pem);
+      return this.encryptDataWithKey(data, pub);
     };
 };
 },{}]},{},[1])
