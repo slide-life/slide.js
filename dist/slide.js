@@ -36,12 +36,12 @@ window.Slide = {
 	    channel.listeners.forEach(function(l) {
 	      l(x);
 	    });
-	    $('#modal').modal('toggle');
-	    $('iframe').remove();
+	    channel.frame.remove();
+	    $("#modal").modal("toggle");
 	  }
 	});
 	channel.listeners = [];
-	channel.listen = function(cb) {
+	channel.observe = function(cb) {
 	  this.listeners.push(cb);
 	};
     },
@@ -82,11 +82,8 @@ Channel.prototype.create = function (cb) {
             success: function (data) {
                 self.id = data.id;
 
-		var channel = new Channel(data.blocks);
-		channel.id = data.id;
-
 		if (!!cb.onCreate) {
-		    cb.onCreate(channel, keys);
+		    cb.onCreate(self, keys);
 		}
 
 		if (!!cb.listen) {
@@ -137,6 +134,7 @@ Channel.prototype.listen = function (cb) {
     var socket = new WebSocket(this.getWSURL());
     var self = this;
     socket.onmessage = function (event) {
+        console.log("message", cb);
         cb(JSON.parse(event.data), self.privateKey);
     };
 };
@@ -145,19 +143,18 @@ Channel.prototype.prompt = function (keys, bucketPrompt) {
     var cb;
     if( !bucketPrompt ) cb = keys;
     var self = this;
-    var frame;
     var listeners = {
         onCreate: function () {
-            frame = $('<iframe/>', {
+            self.frame = $('<iframe/>', {
                 src: 'frames/prompt.html?channel=' + self.id,
                 id: 'slide-bucket-frame'
             });
-            $('#modal .modal-body').append(frame);
+            $('#modal .modal-body').append(self.frame);
             $('#modal').modal('toggle');
         },
         listen: function (data) {
 	  $('#modal').modal('toggle');
-	  frame.remove();
+	  self.frame.remove();
 	  cb && cb(data.fields);
         }
     };
@@ -176,7 +173,7 @@ exports["default"] = function () {
       rsa.generateKeyPair({
         bits: 2048,
 	e: 0x10001,
-	// workers: 2,
+	workers: -1,
 	workerScript: '/slide.js/bower_components/forge/js/prime.worker.js'
       }, function(err, keypair) {
         cb(keypair);
