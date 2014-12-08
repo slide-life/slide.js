@@ -29,7 +29,7 @@ module.exports = function (grunt) {
         separator: ';'
       },
       dist: {
-        src: ['bower_components/sjcl/sjcl.js', 'build/browser.js'],
+        src: ['bower_components/forge/js/forge.min.js', 'build/browser.js'],
         dest: 'dist/slide.js'
       }
     }

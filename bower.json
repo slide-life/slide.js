@@ -16,6 +16,6 @@
     "tests"
   ],
   "dependencies": {
-    "sjcl": "git@github.com:slide-life/sjcl.git"
+    "forge": "0.6.20"
   }
 }
