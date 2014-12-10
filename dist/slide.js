@@ -28534,6 +28534,7 @@ window.Slide = {
   host: 'api-sandbox.slide.life',
 
   crypto: new Crypto(),
+  Channel: Channel,
 
   extractBlocks: function (form) {
     return form.find('*').map(function () {
@@ -28551,25 +28552,6 @@ window.Slide = {
     });
   },
 
-  createChannelFromForm: function (form, cb) {
-    var blocks = this.extractBlocks(form);
-    var channel = new Channel(blocks);
-    channel.create({
-      onCreate: cb,
-      listen: function(x) {
-        channel.listeners.forEach(function(l) {
-          l(x);
-        });
-        channel.frame.remove();
-        $("#modal").modal("toggle");
-      }
-    });
-    channel.listeners = [];
-    channel.observe = function(cb) {
-      this.listeners.push(cb);
-    };
-  },
-
   getBlocks: function (cb) {
     $.ajax({
       type: 'GET',
@@ -28577,9 +28559,7 @@ window.Slide = {
       contentType: 'application/json',
       success: cb
     });
-  },
-
-  Channel: Channel
+  }
 };
 },{"./slide/channel":2,"./slide/crypto":3}],2:[function(require,module,exports){
 "use strict";
@@ -28599,7 +28579,7 @@ Channel.fromObject = function (object) {
   return channel;
 };
 
-Channel.prototype.toObject = function() {
+Channel.prototype.toObject = function () {
   var channel = this;
   var object = {};
   for (var key in channel) {
@@ -28614,25 +28594,25 @@ Channel.prototype.toObject = function() {
 Channel.prototype.create = function (cb) {
   var self = this;
   Slide.crypto.generateKeys(function (keys) {
-      self.publicKey = keys.publicKey;
-      self.privateKey = keys.privateKey;
-      var pem = forge.util.encode64(forge.pki.publicKeyToPem(self.publicKey));
-      $.ajax({
-        type: 'POST',
-        url: 'http://' + Slide.host + '/channels',
-        contentType: 'application/json',
-        data: JSON.stringify({
-          key: forge.util.encode64(forge.pki.publicKeyToPem(self.publicKey)),
-          blocks: self.blocks
-        }),
-        success: function (data) {
-          self.id = data.id;
+    self.publicKey = keys.publicKey;
+    self.privateKey = keys.privateKey;
+    var pem = forge.util.encode64(forge.pki.publicKeyToPem(self.publicKey));
+    $.ajax({
+      type: 'POST',
+      url: 'http://' + Slide.host + '/channels',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        key: forge.util.encode64(forge.pki.publicKeyToPem(self.publicKey)),
+        blocks: self.blocks
+      }),
+      success: function (data) {
+        self.id = data.id;
 
-          if (!!cb) {
-            cb(self, keys)
-          }
+        if (!!cb) {
+          cb(self, keys)
         }
-      });
+      }
+    });
   }, null, this);
 }
 
@@ -28677,27 +28657,19 @@ Channel.prototype.listen = function (cb) {
 };
 
 Channel.prototype.prompt = function (cb) {
-  var bucketPrompt = !cb;
-  var self = this;
-  var listeners = {
-    onCreate: function () {
-      self.frame = $('<iframe/>', {
-        src: 'frames/prompt.html?channel=' + self.id,
-        id: 'slide-bucket-frame'
-      });
-      $('#modal .modal-body').append(self.frame);
-      $('#modal').modal('toggle');
-    },
-    listen: function (data) {
-      $('#modal').modal('toggle');
-      self.frame.remove();
-      cb && cb(data.fields);
-    }
-  };
-  if (bucketPrompt) {
-    listeners.onCreate();
-  }
-  else this.create(listeners);
+  var frame = $('<iframe/>', {
+    src: 'frames/prompt.html?channel=' + this.id,
+    id: 'slide-channel-frame'
+  });
+  this.frame = frame;
+  $('#modal .modal-body').append(frame);
+  $('#modal').modal('toggle');
+
+  this.listen(function (data) {
+    $('#modal').modal('toggle');
+    frame.remove();
+    cb && cb(data);
+  });
 };
 
 Channel.prototype.getResponses = function(cb) {
