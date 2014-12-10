@@ -28542,12 +28542,11 @@ window.Slide = {
     }).toArray();
   },
 
-  populateFields: function (form, fields, sec) {
-    var data = Slide.crypto.decryptData(fields, sec);
+  populateFields: function (form, fields) {
     form.find('*').each(function () {
       var field = $(this).attr('data-slide');
-      if (!!field && data[field]) {
-        $(this).val(data[field]);
+      if (!!field && fields[field]) {
+        $(this).val(fields[field]);
       }
     });
   },
