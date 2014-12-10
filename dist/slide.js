@@ -28624,26 +28624,6 @@ Channel.prototype.getQRCodeURL = function () {
   return this.getURL() + '/qr';
 };
 
-Channel.prototype.updateState = function (state, cb) {
-  $.ajax({
-    type: 'PUT',
-    url: this.getURL(),
-    contentType: 'application/json',
-    data: JSON.stringify({
-      open: state
-    }),
-    success: cb
-  });
-};
-
-Channel.prototype.open = function (cb) {
-  this.updateState(true, cb);
-};
-
-Channel.prototype.close = function (cb) {
-  this.updateState(false, cb);
-};
-
 Channel.prototype.listen = function (cb) {
   var socket = new WebSocket(this.getWSURL());
   var self = this;
@@ -28661,10 +28641,10 @@ Channel.prototype.prompt = function (cb) {
   $('#modal .modal-body').append(frame);
   $('#modal').modal('toggle');
 
-  this.listen(function (data) {
+  this.listen(function (fields) {
     $('#modal').modal('toggle');
     frame.remove();
-    cb && cb(data);
+    cb && cb(fields);
   });
 };
 
