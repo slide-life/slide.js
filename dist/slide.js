@@ -28596,21 +28596,18 @@ Channel.prototype.create = function (cb) {
   Slide.crypto.generateKeys(function (keys) {
     self.publicKey = keys.publicKey;
     self.privateKey = keys.privateKey;
-    var pem = forge.util.encode64(forge.pki.publicKeyToPem(self.publicKey));
+    var pem = btoa(forge.pki.publicKeyToPem(self.publicKey));
     $.ajax({
       type: 'POST',
       url: 'http://' + Slide.host + '/channels',
       contentType: 'application/json',
       data: JSON.stringify({
-        key: forge.util.encode64(forge.pki.publicKeyToPem(self.publicKey)),
+        key: pem,
         blocks: self.blocks
       }),
       success: function (data) {
         self.id = data.id;
-
-        if (!!cb) {
-          cb(self, keys)
-        }
+        cb && cb(self, keys);
       }
     });
   }, null, this);
@@ -28652,7 +28649,7 @@ Channel.prototype.listen = function (cb) {
   var socket = new WebSocket(this.getWSURL());
   var self = this;
   socket.onmessage = function (event) {
-    cb(Slide.crypto.decryptData(JSON.parse(event.data), self.privateKey));
+    cb(Slide.crypto.decryptData(JSON.parse(event.data).fields, self.privateKey));
   };
 };
 
@@ -28704,7 +28701,7 @@ exports["default"] = function () {
   this.decryptData = function(data, sec) {
     var clean = {};
     for( var key in data ) {
-      clean[key] = this.decryptString(forge.util.decode64(data[key]), sec);
+      clean[key] = this.decryptString(atob(data[key]), sec);
     }
     return clean;
   };
@@ -28716,7 +28713,7 @@ exports["default"] = function () {
   this.encryptDataWithKey = function(data, pub) {
     var encrypted = {};
     for( var key in data ) {
-      encrypted[key] = forge.util.encode64(this.encryptString(data[key], pub));
+      encrypted[key] = btoa(this.encryptString(data[key], pub));
     }
     return encrypted;
   };
