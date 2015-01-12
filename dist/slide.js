@@ -28673,6 +28673,49 @@ exports["default"] = function () {
     cb(rsa.generateKeyPair({ bits: 512, e: 0x10001 }));
   };
 
+  var AES = function() {
+    this.key = this.generateKey();
+  };
+  AES.prototype = {
+    generateCipher: function() {
+      return {
+        key: forge.random.getBytesSync(16),
+        iv: forge.random.getBytesSync(16)
+      };
+    },
+    _packCipher: function(cipher) {
+      return btoa(JSON.stringify(this.generateCipher()));
+    },
+    _unpackCipher: function(packed) {
+      return JSON.parse(atob(packed));
+    },
+    generateKey: function() {
+      return this._packCipher(this.generateCipher());
+    },
+    encrypt: function(payload) {
+      var unpacked = this._unpackCipher(this.key),
+          key = unpacked.key,
+          iv = unpacked.iv;
+      var cipher = forge.cipher.createCipher('AES-CBC', key);
+      cipher.start({iv: iv});
+      cipher.update(forge.util.createBuffer(payload));
+      cipher.finish();
+      return cipher.output.toHex();
+    },
+    decrypt: function(hex) {
+      var unpacked = this._unpackCipher(this.key),
+          key = unpacked.key,
+          iv = unpacked.iv;
+      var decipher = forge.cipher.createDecipher('AES-CBC', key);
+      decipher.start({iv: iv});
+      var payload = new forge.util.ByteStringBuffer(forge.util.hexToBytes(hex));
+      decipher.update(payload);
+      decipher.finish();
+      return decipher.output.data;
+    }
+  };
+  this.AES = AES;
+
   this.decryptString = function(text, sec) {
     return sec.decrypt(text);
   };
