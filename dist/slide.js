@@ -28673,10 +28673,7 @@ exports["default"] = function () {
     cb(rsa.generateKeyPair({ bits: 512, e: 0x10001 }));
   };
 
-  var AES = function() {
-    this.key = this.generateKey();
-  };
-  AES.prototype = {
+  this.AES = {
     generateCipher: function() {
       return {
         key: forge.random.getBytesSync(16),
@@ -28692,8 +28689,8 @@ exports["default"] = function () {
     generateKey: function() {
       return this._packCipher(this.generateCipher());
     },
-    encrypt: function(payload) {
-      var unpacked = this._unpackCipher(this.key),
+    encrypt: function(payload, key) {
+      var unpacked = this._unpackCipher(key),
           key = unpacked.key,
           iv = unpacked.iv;
       var cipher = forge.cipher.createCipher('AES-CBC', key);
@@ -28702,8 +28699,8 @@ exports["default"] = function () {
       cipher.finish();
       return cipher.output.toHex();
     },
-    decrypt: function(hex) {
-      var unpacked = this._unpackCipher(this.key),
+    decrypt: function(hex, key) {
+      var unpacked = this._unpackCipher(key),
           key = unpacked.key,
           iv = unpacked.iv;
       var decipher = forge.cipher.createDecipher('AES-CBC', key);
@@ -28714,7 +28711,6 @@ exports["default"] = function () {
       return decipher.output.data;
     }
   };
-  this.AES = AES;
 
   this.decryptString = function(text, sec) {
     return sec.decrypt(text);
