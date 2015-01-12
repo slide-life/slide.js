@@ -28543,11 +28543,10 @@ window.Slide = {
   },
 
   populateFields: function (form, fields, sec) {
-    var data = Slide.crypto.decryptData(fields, sec);
     form.find('*').each(function () {
       var field = $(this).attr('data-slide');
-      if (!!field && data[field]) {
-        $(this).val(data[field]);
+      if (!!field && fields[field]) {
+        $(this).val(fields[field]);
       }
     });
   },
@@ -28596,7 +28595,7 @@ Channel.prototype.create = function (cb) {
   Slide.crypto.generateKeys(function (keys) {
     self.publicKey = keys.publicKey;
     self.privateKey = keys.privateKey;
-    var pem = forge.util.binary.base64.encode(forge.pki.publicKeyToPem(self.publicKey));
+    var pem = btoa(forge.pki.publicKeyToPem(self.publicKey));
     $.ajax({
       type: 'POST',
       url: 'http://' + Slide.host + '/channels',
@@ -28625,26 +28624,6 @@ Channel.prototype.getQRCodeURL = function () {
   return this.getURL() + '/qr';
 };
 
-Channel.prototype.updateState = function (state, cb) {
-  $.ajax({
-    type: 'PUT',
-    url: this.getURL(),
-    contentType: 'application/json',
-    data: JSON.stringify({
-      open: state
-    }),
-    success: cb
-  });
-};
-
-Channel.prototype.open = function (cb) {
-  this.updateState(true, cb);
-};
-
-Channel.prototype.close = function (cb) {
-  this.updateState(false, cb);
-};
-
 Channel.prototype.listen = function (cb) {
   var socket = new WebSocket(this.getWSURL());
   var self = this;
@@ -28662,10 +28641,10 @@ Channel.prototype.prompt = function (cb) {
   $('#modal .modal-body').append(frame);
   $('#modal').modal('toggle');
 
-  this.listen(function (data) {
+  this.listen(function (fields) {
     $('#modal').modal('toggle');
     frame.remove();
-    cb && cb(data);
+    cb && cb(fields);
   });
 };
 
@@ -28701,7 +28680,7 @@ exports["default"] = function () {
   this.decryptData = function(data, sec) {
     var clean = {};
     for( var key in data ) {
-      clean[key] = this.decryptString(forge.util.binary.base64.decode(data[key]), sec);
+      clean[key] = this.decryptString(atob(data[key]), sec);
     }
     return clean;
   };
@@ -28713,7 +28692,7 @@ exports["default"] = function () {
   this.encryptDataWithKey = function(data, pub) {
     var encrypted = {};
     for( var key in data ) {
-      encrypted[key] = forge.util.binary.base64.encode(this.encryptString(data[key], pub));
+      encrypted[key] = btoa(this.encryptString(data[key], pub));
     }
     return encrypted;
   };
