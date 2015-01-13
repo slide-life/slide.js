@@ -28580,33 +28580,24 @@ function Actor() {
     self.publicKey = keys.publicKey;
     self.privateKey = keys.privateKey;
     self.key = Slide.crypto.AES.generateKey();
-    self.initialize("16144408217");
   });
 }
 
-Actor.prototype.initialize = function(downstream) {
+Actor.prototype.openConversation = function(downstream, downstreamKey, listen, cb) {
   var self = this;
-  self.getDownstreamKey(downstream, function(downstreamKey) {
-    var key = Slide.crypto.encryptStringWithPackedKey(self.key, downstreamKey);
-    $.post(Slide.endpoint("/actors"),
-      JSON.stringify({key: self.publicKey}),
-      function(actor) {
-        self.id = actor.id;
-        self.listen(function(data) {
-          console.log(data);
-        });
-
-        var conversation = new Slide.Conversation(key, self.id, downstream);
+  var key = Slide.crypto.encryptStringWithPackedKey(self.key, downstreamKey);
+  $.post(Slide.endpoint("/actors"),
+    JSON.stringify({key: self.publicKey}),
+    function(actor) {
+      self.id = actor.id;
+      self.listen(function(fields) {
+        // UI shit
+        $('#modal').modal('toggle');
+        listen(fields);
       });
-  });
-};
 
-Actor.prototype.getDownstreamKey = function(downstream, cb) {
-  // NB: assuming it's a user
-  $.get(Slide.endpoint("/users/" + downstream + "/public_key"), function(resp) {
-    var key = resp.public_key;
-    cb(key);
-  });
+      var conversation = new Slide.Conversation(key, self.id, downstream, cb);
+    });
 };
 
 Actor.prototype.listen = function(cb) {
@@ -28623,31 +28614,7 @@ exports["default"] = Actor;
 "use strict";
 function Channel (blocks) {
   this.blocks = blocks;
-  return this;
 }
-
-Channel.fromObject = function (object) {
-  var channel = new Channel();
-  for (var key in object) {
-    if (object.hasOwnProperty(key)) {
-      channel[key] = object[key];
-    }
-  }
-  channel.privateKey = forge.pki.privateKeyFromPem(channel.privateKey);
-  return channel;
-};
-
-Channel.prototype.toObject = function () {
-  var channel = this;
-  var object = {};
-  for (var key in channel) {
-    if (channel.hasOwnProperty(key)) {
-      object[key] = channel[key];
-    }
-  }
-  object.privateKey = forge.pki.privateKeyToPem(object.privateKey);
-  return object;
-};
 
 Channel.prototype.prompt = function(cb) {
   var form = $("<form><input type='text'><input type='submit' value='Send'></form>");
@@ -28663,69 +28630,10 @@ Channel.prototype.prompt = function(cb) {
   $("#modal").modal('toggle');
 };
 
-Channel.prototype.create = function (number, key, cb) {
-  var self = this;
-  self.aes = Slide.crypto.AES.generateKey();
-  var encryptedKey = Slide.crypto.encryptStringWithPackedKey(self.aes, key)
-  $.ajax({
-    type: 'POST',
-    url: 'http://' + Slide.host + '/channels',
-    contentType: 'application/json',
-    data: JSON.stringify({
-      key: encryptedKey,
-      blocks: self.blocks,
-      number: number
-    }),
-    success: function (data) {
-      self.id = data.id;
-      self.listen(function (fields) {
-        $('#modal').modal('toggle');
-        cb && cb(fields);
-      });
-    }
-  });
-}
-
-Channel.prototype.getWSURL = function () {
-  return 'ws://' + Slide.host + '/channels/' + this.id + '/listen';
-};
-
-Channel.prototype.getURL = function () {
-  return 'http://' + Slide.host + '/channels/' + this.id;
-};
-
-Channel.prototype.getQRCodeURL = function () {
-  return this.getURL() + '/qr';
-};
-
-Channel.prototype.listen = function (cb) {
-  var socket = new WebSocket(this.getWSURL());
-  var self = this;
-  socket.onmessage = function (event) {
-    var data = JSON.parse(event.data).fields;
-    cb(Slide.crypto.AES.decryptData(data, self.aes));
-  };
-};
-
-Channel.prototype.getResponses = function(cb) {
-  var privateKey = this.privateKey;
-  $.ajax({
-    type: 'GET',
-    url: 'http://' + Slide.host + '/channels/' + this.id,
-    contentType: 'application/json',
-    success: function (data) {
-      cb(data.responses.map(function(response) {
-        response.fields = Slide.crypto.decryptData(response.fields, privateKey);
-        return response;
-      }));
-    }
-  });
-};
-
 exports["default"] = Channel;
 },{}],4:[function(require,module,exports){
 "use strict";
-var Conversation = function(key, upstream, downstream) {
+var Conversation = function(key, upstream, downstream, cb) {
   this.key = key;
   this.upstream = upstream;
   this.downstream = downstream;
@@ -28733,9 +28641,8 @@ var Conversation = function(key, upstream, downstream) {
   $.post(Slide.endpoint("/conversations"),
     JSON.stringify({key: key, upstream: upstream, downstream: downstream}),
     function(conversation) {
-      console.log(conversation);
       self.id = conversation.id;
-      self.request(['first-name']);
+      cb(self);
     });
 };
 
@@ -28743,7 +28650,7 @@ Conversation.prototype.request = function(blocks) {
   $.post(Slide.endpoint("/conversations/" + this.id + "/request_content"),
     JSON.stringify({blocks: blocks}),
     function(conversation) {
-      console.log("requested", blocks);
+      // Handle response?
     });
 };
 
