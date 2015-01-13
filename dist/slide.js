@@ -28579,7 +28579,6 @@ function Actor() {
   Slide.crypto.generateKeys(function(keys) {
     self.publicKey = keys.publicKey;
     self.privateKey = keys.privateKey;
-    self.key = Slide.crypto.AES.generateKey();
   });
 }
 
@@ -28591,7 +28590,6 @@ Actor.prototype.openRequest = function(blocks, downstream, downstreamKey, cb) {
 
 Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate, onMessage) {
   var self = this;
-  var key = Slide.crypto.encryptStringWithPackedKey(self.key, downstreamKey);
   $.post(Slide.endpoint("/actors"),
     JSON.stringify({key: self.publicKey}),
     function(actor) {
@@ -28602,7 +28600,8 @@ Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate,
         onMessage(fields);
       });
 
-      var conversation = new Slide.Conversation(key, self.id, downstream, onCreate);
+      var conversation = new Slide.Conversation(self.id, downstream, downstreamKey, onCreate);
+      self.key = conversation.symmetricKey;
     });
 };
 
@@ -28618,7 +28617,9 @@ Actor.prototype.listen = function(cb) {
 exports["default"] = Actor;
 },{}],3:[function(require,module,exports){
 "use strict";
-var Conversation = function(key, upstream, downstream, cb) {
+var Conversation = function(upstream, downstream, downstreamKey, cb) {
+  this.symmetricKey = Slide.crypto.AES.generateKey();
+  var key = Slide.crypto.encryptStringWithPackedKey(this.symmetricKey, downstreamKey);
   this.key = key;
   this.upstream = upstream;
   this.downstream = downstream;
