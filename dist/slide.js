@@ -28527,14 +28527,20 @@ return require('js/forge');
 "use strict";
 var Crypto = require("./slide/crypto")["default"];
 var Channel = require("./slide/channel")["default"];
+var Actor = require("./slide/actor")["default"];
 
 $('body').append('<div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
 window.Slide = {
   host: 'api-sandbox.slide.life',
 
+  endpoint: function(path) {
+    return 'http://' + Slide.host + path;
+  },
+
   crypto: new Crypto(),
   Channel: Channel,
+  Actor: Actor,
 
   extractBlocks: function (form) {
     return form.find('*').map(function () {
@@ -28560,7 +28566,38 @@ window.Slide = {
     });
   }
 };
-},{"./slide/channel":2,"./slide/crypto":3}],2:[function(require,module,exports){
+},{"./slide/actor":2,"./slide/channel":3,"./slide/crypto":4}],2:[function(require,module,exports){
+"use strict";
+function Actor() {
+  var self = this;
+  Slide.crypto.generateKeys(function(keys) {
+    keys = Slide.crypto.packKeys(keys);
+    self.publicKey = keys.publicKey;
+    self.privateKey = keys.privateKey;
+    self.initialize();
+  });
+}
+
+Actor.prototype.initialize = function() {
+  $.post(Slide.endpoint("/actors"),
+    JSON.stringify({key: this.publicKey}),
+    function(resp) {
+      console.log(resp);
+    });
+};
+
+Actor.prototype.listen = function(cb) {
+  var socket = new WebSocket(Slide.endpoint("/actors/" + this.id + "/listen"));
+  var self = this;
+  console.log("listening");
+  socket.onmessage = function (event) {
+    var data = JSON.parse(event.data).fields;
+    cb(Slide.crypto.AES.decryptData(data, self.aes));
+  };
+};
+
+exports["default"] = Actor;
+},{}],3:[function(require,module,exports){
 "use strict";
 function Channel (blocks) {
   this.blocks = blocks;
@@ -28664,7 +28701,7 @@ Channel.prototype.getResponses = function(cb) {
 };
 
 exports["default"] = Channel;
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 "use strict";
 exports["default"] = function () {
   var rsa = forge.pki.rsa;
