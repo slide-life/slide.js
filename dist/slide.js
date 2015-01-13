@@ -28534,8 +28534,12 @@ $('body').append('<div class="modal fade" id="modal" tabindex="-1" role="dialog"
 window.Slide = {
   host: 'api-sandbox.slide.life',
 
-  endpoint: function(path) {
-    return 'http://' + Slide.host + path;
+  endpoint: function(/* protocol, */ path) {
+    if( arguments.length > 1 ) {
+      return arguments[0] + Slide.host + arguments[1];
+    } else {
+      return 'http://' + Slide.host + path;
+    }
   },
 
   crypto: new Crypto(),
@@ -28571,28 +28575,42 @@ window.Slide = {
 function Actor() {
   var self = this;
   Slide.crypto.generateKeys(function(keys) {
-    keys = Slide.crypto.packKeys(keys);
     self.publicKey = keys.publicKey;
     self.privateKey = keys.privateKey;
-    self.initialize();
+    self.key = Slide.crypto.AES.generateKey();
+    self.initialize("16144408217");
   });
 }
 
-Actor.prototype.initialize = function() {
-  $.post(Slide.endpoint("/actors"),
-    JSON.stringify({key: this.publicKey}),
-    function(resp) {
-      console.log(resp);
-    });
+Actor.prototype.initialize = function(downstream) {
+  var self = this;
+  self.getDownstreamKey(downstream, function(downstreamKey) {
+    var key = Slide.crypto.encryptStringWithPackedKey(self.key, downstreamKey);
+    $.post(Slide.endpoint("/actors"),
+      JSON.stringify({key: key}),
+      function(actor) {
+        self.id = actor.id;
+        self.listen(function(data) {
+          console.log(data);
+        });
+      });
+  });
+};
+
+Actor.prototype.getDownstreamKey = function(downstream, cb) {
+  // NB: assuming it's a user
+  $.get(Slide.endpoint("/users/" + downstream + "/public_key"), function(resp) {
+    var key = resp.public_key;
+    cb(key);
+  });
 };
 
 Actor.prototype.listen = function(cb) {
-  var socket = new WebSocket(Slide.endpoint("/actors/" + this.id + "/listen"));
+  var socket = new WebSocket(Slide.endpoint("ws://", "/actors/" + this.id + "/listen"));
   var self = this;
-  console.log("listening");
   socket.onmessage = function (event) {
     var data = JSON.parse(event.data).fields;
-    cb(Slide.crypto.AES.decryptData(data, self.aes));
+    cb(Slide.crypto.AES.decryptData(data, self.key));
   };
 };
 
