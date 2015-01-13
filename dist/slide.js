@@ -28526,9 +28526,9 @@ return require('js/forge');
 ;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 var Crypto = require("./slide/crypto")["default"];
-var Channel = require("./slide/channel")["default"];
 var Actor = require("./slide/actor")["default"];
 var Conversation = require("./slide/conversation")["default"];
+var User = require("./slide/user")["default"];
 
 $('body').append('<div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
@@ -28544,9 +28544,9 @@ window.Slide = {
   },
 
   crypto: new Crypto(),
-  Channel: Channel,
   Actor: Actor,
   Conversation: Conversation,
+  User: User,
 
   extractBlocks: function (form) {
     return form.find('*').map(function () {
@@ -28572,7 +28572,7 @@ window.Slide = {
     });
   }
 };
-},{"./slide/actor":2,"./slide/channel":3,"./slide/conversation":4,"./slide/crypto":5}],2:[function(require,module,exports){
+},{"./slide/actor":2,"./slide/conversation":3,"./slide/crypto":4,"./slide/user":5}],2:[function(require,module,exports){
 "use strict";
 function Actor() {
   var self = this;
@@ -28583,7 +28583,13 @@ function Actor() {
   });
 }
 
-Actor.prototype.openConversation = function(downstream, downstreamKey, listen, cb) {
+Actor.prototype.openRequest = function(blocks, downstream, downstreamKey, cb) {
+  this.openConversation(downstream, downstreamKey, function(conversation) {
+    conversation.request(blocks);
+  }, cb);
+};
+
+Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate, onMessage) {
   var self = this;
   var key = Slide.crypto.encryptStringWithPackedKey(self.key, downstreamKey);
   $.post(Slide.endpoint("/actors"),
@@ -28593,10 +28599,10 @@ Actor.prototype.openConversation = function(downstream, downstreamKey, listen, c
       self.listen(function(fields) {
         // UI shit
         $('#modal').modal('toggle');
-        listen(fields);
+        onMessage(fields);
       });
 
-      var conversation = new Slide.Conversation(key, self.id, downstream, cb);
+      var conversation = new Slide.Conversation(key, self.id, downstream, onCreate);
     });
 };
 
@@ -28611,27 +28617,6 @@ Actor.prototype.listen = function(cb) {
 
 exports["default"] = Actor;
 },{}],3:[function(require,module,exports){
-"use strict";
-function Channel (blocks) {
-  this.blocks = blocks;
-}
-
-Channel.prototype.prompt = function(cb) {
-  var form = $("<form><input type='text'><input type='submit' value='Send'></form>");
-  $('#modal .modal-body').append(form);
-  form.submit(function(evt) {
-    evt.preventDefault();
-    var number = $(this).find("[type=text]").val();
-    $.get("http://" + Slide.host + "/users/" + number + "/public_key", function(resp) {
-      var key = resp.public_key;
-      cb(number, key);
-    });
-  });
-  $("#modal").modal('toggle');
-};
-
-exports["default"] = Channel;
-},{}],4:[function(require,module,exports){
 "use strict";
 var Conversation = function(key, upstream, downstream, cb) {
   this.key = key;
@@ -28655,7 +28640,7 @@ Conversation.prototype.request = function(blocks) {
 };
 
 exports["default"] = Conversation;
-},{}],5:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 "use strict";
 exports["default"] = function () {
   var rsa = forge.pki.rsa;
@@ -28773,4 +28758,23 @@ exports["default"] = function () {
     return pub.decrypt(atob(text));
   };
 };
+},{}],5:[function(require,module,exports){
+"use strict";
+var User = {
+  prompt: function(cb) {
+    var form = $("<form><input type='text'><input type='submit' value='Send'></form>");
+    $('#modal .modal-body').append(form);
+    form.submit(function(evt) {
+      evt.preventDefault();
+      var number = $(this).find("[type=text]").val();
+      $.get("http://" + Slide.host + "/users/" + number + "/public_key", function(resp) {
+        var key = resp.public_key;
+        cb(number, key);
+      });
+    });
+    $("#modal").modal('toggle');
+  }
+};
+
+exports["default"] = User;
 },{}]},{},[1])
