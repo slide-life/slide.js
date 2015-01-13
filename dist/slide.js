@@ -28528,6 +28528,7 @@ return require('js/forge');
 var Crypto = require("./slide/crypto")["default"];
 var Channel = require("./slide/channel")["default"];
 var Actor = require("./slide/actor")["default"];
+var Conversation = require("./slide/conversation")["default"];
 
 $('body').append('<div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
@@ -28545,6 +28546,7 @@ window.Slide = {
   crypto: new Crypto(),
   Channel: Channel,
   Actor: Actor,
+  Conversation: Conversation,
 
   extractBlocks: function (form) {
     return form.find('*').map(function () {
@@ -28570,7 +28572,7 @@ window.Slide = {
     });
   }
 };
-},{"./slide/actor":2,"./slide/channel":3,"./slide/crypto":4}],2:[function(require,module,exports){
+},{"./slide/actor":2,"./slide/channel":3,"./slide/conversation":4,"./slide/crypto":5}],2:[function(require,module,exports){
 "use strict";
 function Actor() {
   var self = this;
@@ -28587,12 +28589,14 @@ Actor.prototype.initialize = function(downstream) {
   self.getDownstreamKey(downstream, function(downstreamKey) {
     var key = Slide.crypto.encryptStringWithPackedKey(self.key, downstreamKey);
     $.post(Slide.endpoint("/actors"),
-      JSON.stringify({key: key}),
+      JSON.stringify({key: self.publicKey}),
       function(actor) {
         self.id = actor.id;
         self.listen(function(data) {
           console.log(data);
         });
+
+        var conversation = new Slide.Conversation(key, self.id, downstream);
       });
   });
 };
@@ -28720,6 +28724,20 @@ Channel.prototype.getResponses = function(cb) {
 
 exports["default"] = Channel;
 },{}],4:[function(require,module,exports){
+"use strict";
+var Conversation = function(key, upstream, downstream) {
+  this.key = key;
+  this.upstream = upstream;
+  this.downstream = downstream;
+  $.post(Slide.endpoint("/conversations"),
+    JSON.stringify({key: key, upstream: upstream, downstream: downstream}),
+    function(conversation) {
+      console.log(conversation);
+    });
+};
+
+exports["default"] = Conversation;
+},{}],5:[function(require,module,exports){
 "use strict";
 exports["default"] = function () {
   var rsa = forge.pki.rsa;
