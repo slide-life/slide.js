@@ -28532,7 +28532,7 @@ var User = require("./slide/user")["default"];
 
 $('body').append('<div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
-window.Slide = {
+var Slide = {
   host: 'api-sandbox.slide.life',
 
   endpoint: function(/* protocol, */ path) {
@@ -28572,6 +28572,8 @@ window.Slide = {
     });
   }
 };
+
+window.Slide = Slide;
 },{"./slide/actor":2,"./slide/conversation":3,"./slide/crypto":4,"./slide/user":5}],2:[function(require,module,exports){
 "use strict";
 function Actor() {
@@ -28590,7 +28592,7 @@ Actor.prototype.openRequest = function(blocks, downstream, downstreamKey, cb) {
 
 Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate, onMessage) {
   var self = this;
-  $.post(Slide.endpoint("/actors"),
+  $.post(Slide.endpoint('/actors'),
     JSON.stringify({key: self.publicKey}),
     function(actor) {
       self.id = actor.id;
@@ -28606,7 +28608,7 @@ Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate,
 };
 
 Actor.prototype.listen = function(cb) {
-  var socket = new WebSocket(Slide.endpoint("ws://", "/actors/" + this.id + "/listen"));
+  var socket = new WebSocket(Slide.endpoint('ws://', '/actors/' + this.id + '/listen'));
   var self = this;
   socket.onmessage = function (event) {
     var data = JSON.parse(event.data).fields;
@@ -28624,7 +28626,7 @@ var Conversation = function(upstream, downstream, downstreamKey, cb) {
   this.upstream = upstream;
   this.downstream = downstream;
   var self = this;
-  $.post(Slide.endpoint("/conversations"),
+  $.post(Slide.endpoint('/conversations'),
     JSON.stringify({key: key, upstream: upstream, downstream: downstream}),
     function(conversation) {
       self.id = conversation.id;
@@ -28633,7 +28635,7 @@ var Conversation = function(upstream, downstream, downstreamKey, cb) {
 };
 
 Conversation.prototype.request = function(blocks) {
-  $.post(Slide.endpoint("/conversations/" + this.id + "/request_content"),
+  $.post(Slide.endpoint('/conversations/' + this.id + '/request_content'),
     JSON.stringify({blocks: blocks}),
     function(conversation) {
       // Handle response?
@@ -28671,7 +28673,6 @@ exports["default"] = function () {
       };
     },
     _packCipher: function(cipher) {
-      var cipher = this.generateCipher();
       return btoa(cipher.key+cipher.iv);
     },
     _unpackCipher: function(packed) {
@@ -28683,8 +28684,8 @@ exports["default"] = function () {
     generateKey: function() {
       return this._packCipher(this.generateCipher());
     },
-    encrypt: function(payload, key) {
-      var unpacked = this._unpackCipher(key),
+    encrypt: function(payload, seed) {
+      var unpacked = this._unpackCipher(seed),
           key = unpacked.key,
           iv = unpacked.iv;
       var cipher = forge.cipher.createCipher('AES-CBC', key);
@@ -28693,8 +28694,8 @@ exports["default"] = function () {
       cipher.finish();
       return cipher.output.toHex();
     },
-    decrypt: function(hex, key) {
-      var unpacked = this._unpackCipher(key),
+    decrypt: function(hex, seed) {
+      var unpacked = this._unpackCipher(seed),
           key = unpacked.key,
           iv = unpacked.iv;
       var decipher = forge.cipher.createDecipher('AES-CBC', key);
@@ -28758,22 +28759,22 @@ exports["default"] = function () {
     var pub = forge.pki.privateKeyFromPem(atob(key));
     return pub.decrypt(atob(text));
   };
-};
+}
 },{}],5:[function(require,module,exports){
 "use strict";
 var User = {
   prompt: function(cb) {
-    var form = $("<form><input type='text'><input type='submit' value='Send'></form>");
+    var form = $('<form><input type="text"><input type="submit" value="Send"></form>');
     $('#modal .modal-body').append(form);
     form.submit(function(evt) {
       evt.preventDefault();
-      var number = $(this).find("[type=text]").val();
-      $.get("http://" + Slide.host + "/users/" + number + "/public_key", function(resp) {
+      var number = $(this).find('[type=text]').val();
+      $.get('http://' + Slide.host + '/users/' + number + '/public_key', function(resp) {
         var key = resp.public_key;
         cb(number, key);
       });
     });
-    $("#modal").modal('toggle');
+    $('#modal').modal('toggle');
   }
 };
 

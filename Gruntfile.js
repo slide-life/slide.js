@@ -36,6 +36,13 @@ module.exports = function (grunt) {
         src: ['bower_components/forge/js/forge.bundle.js', 'build/browser.js'],
         dest: 'dist/slide.js'
       }
+    },
+
+    jshint: {
+      files: ['lib/**/*.js'],
+      options: {
+        jshintrc: '.jshintrc'
+      }
     }
   });
 
@@ -44,5 +51,8 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-contrib-concat');
   grunt.loadNpmTasks('grunt-es6-module-transpiler');
   grunt.loadNpmTasks('grunt-exec');
+  grunt.loadNpmTasks('grunt-contrib-jshint');
+
   grunt.registerTask('default', ['clean', 'transpile', 'browserify', 'exec', 'concat']);
+  grunt.registerTask('test', 'jshint');
 };
