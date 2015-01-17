@@ -28574,25 +28574,40 @@ window.Slide = {
 };
 },{"./slide/actor":2,"./slide/conversation":3,"./slide/crypto":4,"./slide/user":5}],2:[function(require,module,exports){
 "use strict";
-function Actor() {
+function Actor(name) {
   var self = this;
+  if( name ) this.name = name;
   Slide.crypto.generateKeys(function(keys) {
     self.publicKey = keys.publicKey;
     self.privateKey = keys.privateKey;
   });
 }
 
+Actor.fromObject = function(obj) {
+  var actor = new Actor();
+  actor.privateKey = obj.privateKey;
+  actor.publicKey = obj.publicKey;
+  actor.name = obj.name;
+  actor.id = obj.id;
+  return actor;
+};
+
 Actor.prototype.openRequest = function(blocks, downstream, downstreamKey, cb) {
   this.openConversation(downstream, downstreamKey, function(conversation) {
-    conversation.request(blocks);
+    conversation.request(blocks, function() {
+      conversation.deposit();
+    });
   }, cb);
+};
+
+Actor.prototype.initialize = function(cb) {
+  $.post(Slide.endpoint("/actors"),
+    JSON.stringify({key: self.publicKey}), cb);
 };
 
 Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate, onMessage) {
   var self = this;
-  $.post(Slide.endpoint("/actors"),
-    JSON.stringify({key: self.publicKey}),
-    function(actor) {
+  this.initialize(function(actor) {
       self.id = actor.id;
       self.listen(function(fields) {
         // UI shit
@@ -28625,16 +28640,24 @@ var Conversation = function(upstream, downstream, downstreamKey, cb) {
   this.downstream = downstream;
   var self = this;
   $.post(Slide.endpoint("/conversations"),
-    JSON.stringify({key: key, upstream: upstream, downstream: downstream}),
+    JSON.stringify({key: key, upstream: { type: 'actor', id: upstream }, downstream: { type: 'user', number: downstream }}),
     function(conversation) {
       self.id = conversation.id;
       cb(self);
     });
 };
 
-Conversation.prototype.request = function(blocks) {
+Conversation.prototype.request = function(blocks, cb) {
   $.post(Slide.endpoint("/conversations/" + this.id + "/request_content"),
     JSON.stringify({blocks: blocks}),
+    function(conversation) {
+      cb && cb();
+    });
+};
+
+Conversation.prototype.deposit = function(fields) {
+  $.post(Slide.endpoint("/conversations/" + this.id + "/deposit_content"),
+    JSON.stringify({fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey)}),
     function(conversation) {
       // Handle response?
     });
