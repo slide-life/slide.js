@@ -28529,17 +28529,20 @@ var Crypto = require("./slide/crypto")["default"];
 var Actor = require("./slide/actor")["default"];
 var Conversation = require("./slide/conversation")["default"];
 var User = require("./slide/user")["default"];
+var Block = require("./slide/block")["default"];
 
 $('body').append('<div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
 var Slide = {
-  host: 'api-sandbox.slide.life',
+  HOST: 'api-sandbox.slide.life',
+  DEFAULT_ORGANIZATION: 'slide.life',
+  CACHED_BLOCKS: {},
 
   endpoint: function(/* protocol, */ path) {
     if( arguments.length > 1 ) {
-      return arguments[0] + Slide.host + arguments[1];
+      return arguments[0] + Slide.HOST + arguments[1];
     } else {
-      return 'http://' + Slide.host + path;
+      return 'http://' + Slide.HOST + path;
     }
   },
 
@@ -28547,6 +28550,7 @@ var Slide = {
   Actor: Actor,
   Conversation: Conversation,
   User: User,
+  Block: Block,
 
   extractBlocks: function (form) {
     return form.find('*').map(function () {
@@ -28561,20 +28565,11 @@ var Slide = {
         $(this).val(fields[field]);
       }
     });
-  },
-
-  getBlocks: function (cb) {
-    $.ajax({
-      type: 'GET',
-      url: 'http://' + Slide.host + '/blocks',
-      contentType: 'application/json',
-      success: cb
-    });
   }
 };
 
 window.Slide = Slide;
-},{"./slide/actor":2,"./slide/conversation":3,"./slide/crypto":4,"./slide/user":5}],2:[function(require,module,exports){
+},{"./slide/actor":2,"./slide/block":3,"./slide/conversation":4,"./slide/crypto":5,"./slide/user":6}],2:[function(require,module,exports){
 "use strict";
 function Actor() {
   var self = this;
@@ -28619,6 +28614,127 @@ Actor.prototype.listen = function(cb) {
 exports["default"] = Actor;
 },{}],3:[function(require,module,exports){
 "use strict";
+function flatMap (xs, fn) {
+  return xs.reduce(function(a, b) {
+    return a.concat(fn(b));
+  }, []);
+}
+
+var Block = {
+  // TODO: check for circular dependencies
+  _retrieveField: function (wrapper, block, cb) {
+    var field = wrapper.path.reduce(function (obj, key) {
+      // TODO: check that key is set on object
+      return obj[key];
+    }, block.schema);
+
+    var deferreds = [];
+
+    if (field._components) {
+      field._components.forEach(function (identifier) {
+        var deferred = new $.Deferred();
+        deferreds.push(deferred);
+        Block._retrieveFieldFromIdentifier(identifier, function (f) {
+          field[identifier.split('.').pop()] = f;
+          deferred.resolve();
+        });
+      });
+    }
+
+    // TODO: bug
+    if (field._inherits) {
+      var deferred = new $.Deferred();
+      deferreds.push(deferred);
+      Block._retrieveFieldFromIdentifier(field._inherits, function (f) {
+        field = $.extend({}, f, field);
+        deferred.resolve();
+      });
+    }
+
+    $.when.apply($, deferreds).done(function () {
+      delete field._components;
+      delete field._inherits;
+      cb(field);
+    });
+  },
+
+  _retrieveBlocks: function (identifier, cb) {
+    if (identifier.indexOf(':') === -1) {
+      identifier = Slide.DEFAULT_ORGANIZATION + ':' + identifier;
+    }
+
+    var i = identifier.split(':'),
+        wrapper = { organization: i[0], path: i[1].split('.') };
+
+    if (Slide.CACHED_BLOCKS[wrapper.organization]) {
+      cb(wrapper, Slide.CACHED_BLOCKS[wrapper.organization]);
+    } else {
+      $.get(Slide.endpoint('/blocks?organization=' + wrapper.organization), function (block) {
+        cb(wrapper, block);
+      });
+    }
+  },
+
+  _flattenField: function (field) {
+    var children = [],
+        annotations = {};
+
+    for (var key in field) {
+      if (field.hasOwnProperty(key)) {
+        if (key[0] === '_') {
+          annotations[key] = field[key];
+        } else {
+          children.push(field[key]);
+        }
+      }
+    }
+
+    if (children.length > 0) {
+      // Ignore the parent
+      return children.reduce(function (c, child) {
+        return c.concat(Block._flattenField(child));
+      }, []);
+    } else {
+      return [annotations]; // On a leaf
+    }
+  },
+
+  _retrieveFieldFromIdentifier: function (identifier, cb) {
+    Block._retrieveBlocks(identifier, function (wrapper, blocks) {
+      Block._retrieveField(wrapper, blocks, function (field) {
+        cb(field);
+      });
+    });
+  },
+
+  getFieldsForIdentifiers: function (identifiers, cb) {
+    var fields = [],
+        deferreds = [];
+
+    identifiers.map(function (identifier) {
+      var deferred = new $.Deferred();
+      deferreds.push(deferred);
+      Block._retrieveFieldFromIdentifier(identifier, function (field) {
+        fields.push(field);
+        deferred.resolve();
+      });
+    });
+
+    $.when.apply($, deferreds).done(function () {
+      cb(fields);
+    });
+  },
+
+  getFlattenedFieldsForIdentifiers: function (identifiers, cb) {
+    Block.getFieldsForIdentifiers(identifiers, function (fields) {
+      cb(flatMap(fields, Block._flattenField));
+    });
+  }
+};
+
+exports["default"] = Block;
+},{}],4:[function(require,module,exports){
+"use strict";
 var Conversation = function(upstream, downstream, downstreamKey, cb) {
   this.symmetricKey = Slide.crypto.AES.generateKey();
   var key = Slide.crypto.encryptStringWithPackedKey(this.symmetricKey, downstreamKey);
@@ -28643,7 +28759,7 @@ Conversation.prototype.request = function(blocks) {
 };
 
 exports["default"] = Conversation;
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 "use strict";
 exports["default"] = function () {
   var rsa = forge.pki.rsa;
@@ -28760,7 +28876,7 @@ exports["default"] = function () {
     return pub.decrypt(atob(text));
   };
 }
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 "use strict";
 var User = {
   prompt: function(cb) {
@@ -28769,7 +28885,7 @@ var User = {
     form.submit(function(evt) {
       evt.preventDefault();
       var number = $(this).find('[type=text]').val();
-      $.get('http://' + Slide.host + '/users/' + number + '/public_key', function(resp) {
+      $.get(Slide.endpoint('/users/' + number + '/public_key'), function(resp) {
         var key = resp.public_key;
         cb(number, key);
       });
