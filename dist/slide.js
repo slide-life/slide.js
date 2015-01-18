@@ -28571,25 +28571,40 @@ var Slide = {
 window.Slide = Slide;
 },{"./slide/actor":2,"./slide/block":3,"./slide/conversation":4,"./slide/crypto":5,"./slide/user":6}],2:[function(require,module,exports){
 "use strict";
-function Actor() {
+function Actor(name) {
   var self = this;
+  if( name ) this.name = name;
   Slide.crypto.generateKeys(function(keys) {
     self.publicKey = keys.publicKey;
     self.privateKey = keys.privateKey;
   });
 }
 
+Actor.fromObject = function(obj) {
+  var actor = new Actor();
+  actor.privateKey = obj.privateKey;
+  actor.publicKey = obj.publicKey;
+  actor.name = obj.name;
+  actor.id = obj.id;
+  return actor;
+};
+
 Actor.prototype.openRequest = function(blocks, downstream, downstreamKey, cb) {
   this.openConversation(downstream, downstreamKey, function(conversation) {
-    conversation.request(blocks);
+    conversation.request(blocks, function() {
+      // conversation.deposit({key: ""});
+    });
   }, cb);
+};
+
+Actor.prototype.initialize = function(cb) {
+  $.post(Slide.endpoint("/actors"),
+    JSON.stringify({key: self.publicKey}), cb);
 };
 
 Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate, onMessage) {
   var self = this;
-  $.post(Slide.endpoint('/actors'),
-    JSON.stringify({key: self.publicKey}),
-    function(actor) {
+  this.initialize(function(actor) {
       self.id = actor.id;
       self.listen(function(fields) {
         // UI shit
@@ -28599,7 +28614,7 @@ Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate,
 
       var conversation = new Slide.Conversation(self.id, downstream, downstreamKey, onCreate);
       self.key = conversation.symmetricKey;
-    });
+  });
 };
 
 Actor.prototype.listen = function(cb) {
@@ -28706,14 +28721,14 @@ var Block = {
   },
 
   getFieldsForIdentifiers: function (identifiers, cb) {
-    var fields = [],
+    var fields = {},
         deferreds = [];
 
     identifiers.map(function (identifier) {
       var deferred = new $.Deferred();
       deferreds.push(deferred);
       Block._retrieveFieldFromIdentifier(identifier, function (field) {
-        fields.push(field);
+        fields[identifier] = field;
         deferred.resolve();
       });
     });
@@ -28725,7 +28740,7 @@ var Block = {
 
   getFlattenedFieldsForIdentifiers: function (identifiers, cb) {
     Block.getFieldsForIdentifiers(identifiers, function (fields) {
-      cb(flatMap(fields, Block._flattenField));
+      cb(Block._flattenField(fields));
     });
   }
 };
@@ -28740,17 +28755,25 @@ var Conversation = function(upstream, downstream, downstreamKey, cb) {
   this.upstream = upstream;
   this.downstream = downstream;
   var self = this;
-  $.post(Slide.endpoint('/conversations'),
-    JSON.stringify({key: key, upstream: upstream, downstream: downstream}),
+  $.post(Slide.endpoint("/conversations"),
+    JSON.stringify({key: key, upstream: { type: 'actor', id: upstream }, downstream: { type: 'user', number: downstream }}),
     function(conversation) {
       self.id = conversation.id;
       cb(self);
     });
 };
 
-Conversation.prototype.request = function(blocks) {
-  $.post(Slide.endpoint('/conversations/' + this.id + '/request_content'),
+Conversation.prototype.request = function(blocks, cb) {
+  $.post(Slide.endpoint("/conversations/" + this.id + "/request_content"),
     JSON.stringify({blocks: blocks}),
+    function(conversation) {
+      cb && cb();
+    });
+};
+
+Conversation.prototype.deposit = function(fields) {
+  $.post(Slide.endpoint("/conversations/" + this.id + "/deposit_content"),
+    JSON.stringify({fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey)}),
     function(conversation) {
       // Handle response?
     });
@@ -28876,20 +28899,34 @@ exports["default"] = function () {
 }
 },{}],6:[function(require,module,exports){
 "use strict";
-var User = {
-  prompt: function(cb) {
-    var form = $('<form><input type="text"><input type="submit" value="Send"></form>');
-    $('#modal .modal-body').append(form);
-    form.submit(function(evt) {
-      evt.preventDefault();
-      var number = $(this).find('[type=text]').val();
-      $.get(Slide.endpoint('/users/' + number + '/public_key'), function(resp) {
-        var key = resp.public_key;
-        cb(number, key);
-      });
+var User = function() {
+
+};
+
+User.prompt = function(cb) {
+  var user = new User();
+  var form = $("<form><input type='text'><input type='submit' value='Send'></form>");
+  $('#modal .modal-body').append(form);
+  form.submit(function(evt) {
+    evt.preventDefault();
+    var number = $(this).find('[type=text]').val();
+    $.get(Slide.endpoint('/users/' + number + '/public_key'), function(resp) {
+      var key = resp.public_key;
+      user.number = number;
+      user.key = key;
+      cb.call(user, number, key);
     });
-    $('#modal').modal('toggle');
-  }
+  });
+  $("#modal").modal('toggle');
+  return user;
+};
+
+User.prototype.requestPrivateKey = function(cb) {
+  var actor = new Slide.Actor();
+  var self = this;
+  actor.openRequest(['private-key'], this.number, this.key, function(fields) {
+    cb.call(self, fields['private-key']);
+  });
 };
 
 exports["default"] = User;
