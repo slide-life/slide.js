@@ -28595,7 +28595,7 @@ Actor.fromObject = function(obj) {
 Actor.prototype.openRequest = function(blocks, downstream, downstreamKey, cb) {
   this.openConversation(downstream, downstreamKey, function(conversation) {
     conversation.request(blocks, function() {
-      conversation.deposit();
+      // conversation.deposit({key: ""});
     });
   }, cb);
 };
@@ -28784,8 +28784,12 @@ exports["default"] = function () {
 };
 },{}],5:[function(require,module,exports){
 "use strict";
-var User = {
-  prompt: function(cb) {
+var User = function() {
+
+};
+
+User.prompt = function(cb) {
+    var user = new User();
     var form = $("<form><input type='text'><input type='submit' value='Send'></form>");
     $('#modal .modal-body').append(form);
     form.submit(function(evt) {
@@ -28793,11 +28797,21 @@ var User = {
       var number = $(this).find("[type=text]").val();
       $.get("http://" + Slide.host + "/users/" + number + "/public_key", function(resp) {
         var key = resp.public_key;
-        cb(number, key);
+        user.number = number;
+        user.key = key;
+        cb.call(user, number, key);
       });
     });
     $("#modal").modal('toggle');
-  }
+    return user;
+};
+
+User.prototype.requestPrivateKey = function(cb) {
+  var actor = new Slide.Actor();
+  var self = this;
+  actor.openRequest(['private-key'], this.number, this.key, function(fields) {
+    cb.call(self, fields['private-key']);
+  });
 };
 
 exports["default"] = User;
