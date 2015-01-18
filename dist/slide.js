@@ -28691,8 +28691,8 @@ var Block = {
     }
   },
 
-  _flattenField: function (field) {
-    var children = [],
+  deconstructField: function (field) {
+    var children = {},
         annotations = {};
 
     for (var key in field) {
@@ -28700,15 +28700,28 @@ var Block = {
         if (key[0] === '_') {
           annotations[key] = field[key];
         } else {
-          children.push(field[key]);
+          children[key] = field[key];
         }
       }
     }
 
-    if (children.length > 0) {
-      return flatMap(children, Block._flattenField); // Ignore the parent
+    return { children: children, annotations: annotations };
+  },
+
+  getChildren: function (field) {
+    return Block.deconstructField(field).children;
+  },
+
+  getAnnotations: function () {
+    return Block.deconstructField(field).annotations;
+  },
+
+  _flattenField: function (field) {
+    var deconstructedField = deconstructField(field);
+    if (deconstructedField.children.length > 0) {
+      return flatMap($.makeArray(deconstructedField.children), Block._flattenField); // Ignore the parent
     } else {
-      return [annotations]; // On a leaf
+      return [deconstructedField.annotations]; // On a leaf
     }
   },
 
