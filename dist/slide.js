@@ -28639,9 +28639,7 @@ var Block = {
     var deferreds = [];
 
     if (field._components) {
-      field._components.forEach(function (identifier) {
-        var componentPath = Block.getPathForIdentifier(identifier);
-
+      field._components.map(Block.getPathForIdentifier).forEach(function (componentPath) {
         var deferred = new $.Deferred();
         deferreds.push(deferred);
 
@@ -28654,6 +28652,7 @@ var Block = {
 
     if (field._inherits) {
       var componentPath = Block.getPathForIdentifier(field._inherits);
+      field._inherits = componentPath.identifier;
 
       var deferred = new $.Deferred();
       deferreds.push(deferred);
