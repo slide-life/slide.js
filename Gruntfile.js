@@ -35,6 +35,10 @@ module.exports = function (grunt) {
       dist: {
         src: ['bower_components/forge/js/forge.bundle.js', 'build/browser.js'],
         dest: 'dist/slide.js'
+      },
+      jquery: {
+        src: ['jquery.js', 'dist/slide.js'],
+        dest: 'dist/slide.jquery.js'
       }
     },
 

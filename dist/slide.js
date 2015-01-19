@@ -28575,6 +28575,7 @@ function Actor(name) {
   var self = this;
   if( name ) this.name = name;
   Slide.crypto.generateKeys(function(keys) {
+    keys = Slide.crypto.packKeys(keys);
     self.publicKey = keys.publicKey;
     self.privateKey = keys.privateKey;
   });
@@ -28589,20 +28590,18 @@ Actor.fromObject = function(obj) {
   return actor;
 };
 
-Actor.prototype.openRequest = function(blocks, downstream, downstreamKey, cb) {
-  this.openConversation(downstream, downstreamKey, function(conversation) {
-    conversation.request(blocks, function() {
-      // conversation.deposit({key: ""});
-    });
-  }, cb);
+Actor.prototype.openRequest = function(blocks, downstream, onMessage) {
+  this.openConversation(downstream, function(conversation) {
+    conversation.request(blocks);
+  }, onMessage);
 };
 
 Actor.prototype.initialize = function(cb) {
   $.post(Slide.endpoint("/actors"),
-    JSON.stringify({key: self.publicKey}), cb);
+    JSON.stringify({key: this.publicKey}), cb.bind(this));
 };
 
-Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate, onMessage) {
+Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
   var self = this;
   this.initialize(function(actor) {
       self.id = actor.id;
@@ -28612,7 +28611,7 @@ Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate,
         onMessage(fields);
       });
 
-      var conversation = new Slide.Conversation(self.id, downstream, downstreamKey, onCreate);
+      var conversation = new Slide.Conversation(self.id, downstream, onCreate);
       self.key = conversation.symmetricKey;
   });
 };
@@ -28621,8 +28620,14 @@ Actor.prototype.listen = function(cb) {
   var socket = new WebSocket(Slide.endpoint('ws://', '/actors/' + this.id + '/listen'));
   var self = this;
   socket.onmessage = function (event) {
-    var data = JSON.parse(event.data).fields;
-    cb(Slide.crypto.AES.decryptData(data, self.key));
+    var message = JSON.parse(event.data);
+    if( message.verb == "verb_request" ) {
+      cb(message.payload.blocks, message.payload.conversation);
+    } else {
+      var data = message.payload.fields;
+      console.log("dec", self.key);
+      cb(Slide.crypto.AES.decryptData(data, self.key));
+    }
   };
 };
 
@@ -28748,20 +28753,46 @@ var Block = {
 exports["default"] = Block;
 },{}],4:[function(require,module,exports){
 "use strict";
-var Conversation = function(upstream, downstream, downstreamKey, cb) {
-  this.symmetricKey = Slide.crypto.AES.generateKey();
-  var key = Slide.crypto.encryptStringWithPackedKey(this.symmetricKey, downstreamKey);
-  this.key = key;
-  this.upstream = upstream;
-  this.downstream = downstream;
+var Conversation = function(upstream, downstream, cb) {
+  var key = Slide.crypto.AES.generateKey();
+  Conversation.FromObject.call(this, {
+    symmetricKey: key,
+    key: Slide.crypto.encryptStringWithPackedKey(key, downstream.key),
+    upstream_id: upstream,
+    upstream_type: 'actor',
+    downstream_id: downstream.downstream,
+    downstream_type: downstream.type
+  }, cb.bind(this));
+};
+
+Conversation.FromObject = function(obj, cb) {
+  this.symmetricKey = obj.symmetricKey;
   var self = this;
+  var downstream_pack = obj.downstream_type.toLowerCase() == "actor" ? {
+    type: obj.downstream_type.toLowerCase(), id: obj.downstream_id
+  } : {
+    // TODO: need number
+    type: obj.downstream_type.toLowerCase(), number: obj.downstream_id
+  };
+  var upstream_pack = obj.upstream_type.toLowerCase() == "actor" ? {
+    type: obj.upstream_type.toLowerCase(), id: obj.upstream_id
+  } : {
+    // TODO: need number
+    type: obj.upstream_type.toLowerCase(), number: obj.upstream_id
+  };
+  var payload = {
+    key: obj.key,
+    upstream: upstream_pack,
+    downstream: downstream_pack
+  };
   $.post(Slide.endpoint("/conversations"),
-    JSON.stringify({key: key, upstream: { type: 'actor', id: upstream }, downstream: { type: 'user', number: downstream }}),
+    JSON.stringify(payload),
     function(conversation) {
       self.id = conversation.id;
       cb(self);
     });
 };
+Conversation.FromObject.prototype = Conversation.prototype;
 
 Conversation.prototype.request = function(blocks, cb) {
   $.post(Slide.endpoint("/conversations/" + this.id + "/request_content"),
@@ -28773,6 +28804,17 @@ Conversation.prototype.request = function(blocks, cb) {
 
 Conversation.prototype.deposit = function(fields) {
   $.post(Slide.endpoint("/conversations/" + this.id + "/deposit_content"),
+    JSON.stringify({fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey)}),
+    function(conversation) {
+      // Handle response?
+    });
+};
+
+$.put = function(url, payload, cb) {
+  $.ajax({ url: url, type: 'PUT', data: payload, success: cb });
+};
+Conversation.prototype.respond = function(fields) {
+  $.put(Slide.endpoint("/conversations/" + this.id + ""),
     JSON.stringify({fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey)}),
     function(conversation) {
       // Handle response?
