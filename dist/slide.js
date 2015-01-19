@@ -28646,7 +28646,7 @@ var Block = {
         deferreds.push(deferred);
 
         Block._retrieveFieldFromPath(componentPath, function (f) {
-          field[componentPath.pop()] = f;
+          field[componentPath.hierarchy.pop()] = f;
           deferred.resolve();
         });
       });
