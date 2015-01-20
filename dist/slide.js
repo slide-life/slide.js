@@ -28531,6 +28531,7 @@ var Conversation = require("./slide/conversation")["default"];
 var User = require("./slide/user")["default"];
 var Block = require("./slide/block")["default"];
 var Vendor = require("./slide/vendor")["default"];
+var VendorForm = require("./slide/vendor_form")["default"];
 
 $('body').append('<div class="modal fade" style="display: none" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
@@ -28552,6 +28553,7 @@ var Slide = {
   Conversation: Conversation,
   User: User,
   Vendor: Vendor,
+  VendorForm: VendorForm,
   Block: Block,
 
   extractBlocks: function (form) {
@@ -28571,7 +28573,7 @@ var Slide = {
 };
 
 window.Slide = Slide;
-},{"./slide/actor":2,"./slide/block":3,"./slide/conversation":4,"./slide/crypto":5,"./slide/user":6,"./slide/vendor":7}],2:[function(require,module,exports){
+},{"./slide/actor":2,"./slide/block":3,"./slide/conversation":4,"./slide/crypto":5,"./slide/user":6,"./slide/vendor":7,"./slide/vendor_form":8}],2:[function(require,module,exports){
 "use strict";
 function Actor(name) {
   var self = this;
@@ -28829,7 +28831,7 @@ var Conversation = function(upstream, downstream, cb) {
     upstream_type: 'actor',
     downstream_type: downstream.type
   };
-  var device = downstream.type == 'actor' ? 'downstream_id' : 'downstream_number';
+  var device = downstream.type == 'user' ? 'downstream_number' : 'downstream_id';
   obj[device] = downstream.downstream;
   Conversation.FromObject.call(this, obj, cb.bind(this));
 };
@@ -28837,16 +28839,16 @@ var Conversation = function(upstream, downstream, cb) {
 Conversation.FromObject = function(obj, cb) {
   this.symmetricKey = obj.symmetricKey;
   var self = this;
-  var downstream_pack = obj.downstream_type.toLowerCase() == "actor" ? {
-    type: obj.downstream_type.toLowerCase(), id: obj.downstream_id
+  var downstream_pack = obj.downstream_type.toLowerCase() == "user" ? {
+    type: obj.downstream_type.toLowerCase(), id: obj.downstream_number
   } : {
     // TODO: need number
-    type: obj.downstream_type.toLowerCase(), number: obj.downstream_number
+    type: obj.downstream_type.toLowerCase(), number: obj.downstream_id
   };
-  var upstream_pack = obj.upstream_type.toLowerCase() == "actor" ? {
-    type: obj.upstream_type.toLowerCase(), id: obj.upstream_id
+  var upstream_pack = obj.upstream_type.toLowerCase() == "user" ? {
+    type: obj.upstream_type.toLowerCase(), id: obj.upstream_number
   } : {
-    type: obj.upstream_type.toLowerCase(), number: obj.upstream_number
+    type: obj.upstream_type.toLowerCase(), number: obj.upstream_id
   };
   var payload = {
     key: obj.key,
@@ -29174,7 +29176,7 @@ Vendor.prototype.listen = function(cb) {
     console.log("refresh");
   };
 };
-Vendor.prototype.createForm = function(name, formFields) {
+Vendor.prototype.createForm = function(name, formFields, cb) {
   var payload = {
     name: name,
     form_fields: formFields,
@@ -29183,9 +29185,37 @@ Vendor.prototype.createForm = function(name, formFields) {
   $.post(Slide.endpoint("/vendors/" + this.id + "/vendor_forms"),
     JSON.stringify(payload),
     function(form) {
-      console.log(form);
+      cb && cb(Slide.VendorForm.fromObject(form));
     });
 };
 
 exports["default"] = Vendor;
-},{"./user":6}]},{},[1])
+},{"./user":6}],8:[function(require,module,exports){
+"use strict";
+var VendorForm = function(name, fields, vendorId) {
+  this.name = name;
+  this.fields = fields;
+  this.vendor = vendorId;
+};
+
+VendorForm.prototype.initialize = function(cb) {
+  $.post(Slide.endpoint("/vendors/" + this.vendorId + "/vendor_forms"),
+    JSON.stringify({
+      form_fields: this.fields,
+      name: this.name,
+      fields: this.fields
+    }),
+    function(form) {
+      console.log(form);
+      cb && cb(form);
+    });
+};
+
+VendorForm.fromObject = function(obj) {
+  var form = new VendorForm(obj.name, obj.form_fields, obj.vendor_id);
+  form.id = obj.id;
+  return form;
+};
+
+exports["default"] = VendorForm;
+},{}]},{},[1])
