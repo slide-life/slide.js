@@ -30642,27 +30642,39 @@ return require('js/forge');
 }));
 ;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
-var crypto = require("./slide/crypto")["default"];
-
+var Crypto = require("./slide/crypto")["default"];
+var Securable = require("./slide/securable")["default"];
 var Actor = require("./slide/actor")["default"];
 var Conversation = require("./slide/conversation")["default"];
 var User = require("./slide/user")["default"];
 var Block = require("./slide/block")["default"];
 var Vendor = require("./slide/vendor")["default"];
-var Form = require("./slide/form")["default"];
+var VendorForm = require("./slide/vendor_form")["default"];
+var VendorUser = require("./slide/vendor_user")["default"];
+
+$('body').append('<div class="modal fade" style="display: none" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
 var Slide = {
+  HOST: 'api-sandbox.slide.life',
   DEFAULT_ORGANIZATION: 'slide.life',
   CACHED_BLOCKS: {},
 
-  crypto: new crypto(),
+  endpoint: function(/* protocol, */ path) {
+    if( arguments.length > 1 ) {
+      return arguments[0] + Slide.HOST + arguments[1];
+    } else {
+      return 'http://' + Slide.HOST + path;
+    }
+  },
 
+  crypto: new Crypto(),
   Actor: Actor,
   Conversation: Conversation,
   User: User,
-  Block: Block,
   Vendor: Vendor,
-  Form: Form,
+  VendorForm: VendorForm,
+  VendorUser: VendorUser,
+  Block: Block,
 
   extractBlocks: function (form) {
     return form.find('*').map(function () {
@@ -30677,32 +30689,11 @@ var Slide = {
         $(this).val(fields[field]);
       }
     });
-  },
-
-  presentModalFormFromIdentifiers: function (identifiers, userData) {
-    if (!this._modal) {
-      this._modal = $('<div class="slide-modal"></div>');
-      var header = $('<div class="slide-modal-header"></div>').append('<h2>Fill with slide</h2>');
-      this._modal.append(header, '<div class="slide-modal-body"></div>');
-      this._modal.appendTo($('body'));
-    }
-
-    var modal = this._modal;
-    this.Form.createFromIdentifiers(modal.find('.slide-modal-body'), identifiers, function (form) {
-      form.build(userData, {
-        onSubmit: function () {
-          console.log(form.serialize());
-          console.log(form.getUserData());
-        }
-      });
-      modal.show();
-      $(window).trigger('resize');
-    });
   }
 };
 
 window.Slide = Slide;
-},{"./slide/actor":2,"./slide/block":4,"./slide/conversation":5,"./slide/crypto":6,"./slide/form":7,"./slide/user":8,"./slide/vendor":9}],2:[function(require,module,exports){
+},{"./slide/actor":2,"./slide/block":4,"./slide/conversation":5,"./slide/crypto":6,"./slide/securable":7,"./slide/user":8,"./slide/vendor":9,"./slide/vendor_form":10,"./slide/vendor_user":11}],2:[function(require,module,exports){
 "use strict";
 var api = require("./api")["default"];
 
@@ -30750,6 +30741,14 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
     var conversation = new Slide.Conversation(self.id, downstream, onCreate);
     self.key = conversation.symmetricKey;
   });
+};
+
+Actor.prototype.getId = function() {
+  return this.id;
+};
+
+Actor.prototype.getDevice = function() {
+  return { type: 'actor', id: this.getId(), key: this.publicKey };
 };
 
 Actor.prototype.listen = function(cb) {
@@ -31013,7 +31012,7 @@ var Conversation = function(upstream, downstream, cb) {
     upstream_type: 'actor',
     downstream_type: downstream.type
   };
-  var device = downstream.type == 'actor' ? 'downstream_id' : 'downstream_number';
+  var device = downstream.type == 'user' ? 'downstream_number' : 'downstream_id';
   obj[device] = downstream.downstream;
   Conversation.FromObject.call(this, obj, cb.bind(this));
 };
@@ -31021,16 +31020,15 @@ var Conversation = function(upstream, downstream, cb) {
 Conversation.FromObject = function(obj, cb) {
   this.symmetricKey = obj.symmetricKey;
   var self = this;
-  var downstream_pack = obj.downstream_type.toLowerCase() == "actor" ? {
-    type: obj.downstream_type.toLowerCase(), id: obj.downstream_id
-  } : {
-    // TODO: need number
+  var downstream_pack = obj.downstream_type.toLowerCase() == "user" ? {
     type: obj.downstream_type.toLowerCase(), number: obj.downstream_number
-  };
-  var upstream_pack = obj.upstream_type.toLowerCase() == "actor" ? {
-    type: obj.upstream_type.toLowerCase(), id: obj.upstream_id
   } : {
+    type: obj.downstream_type.toLowerCase(), id: obj.downstream_id
+  };
+  var upstream_pack = obj.upstream_type.toLowerCase() == "user" ? {
     type: obj.upstream_type.toLowerCase(), number: obj.upstream_number
+  } : {
+    type: obj.upstream_type.toLowerCase(), id: obj.upstream_id
   };
 
   var payload = {
@@ -31189,359 +31187,40 @@ exports["default"] = function () {
 }
 },{}],7:[function(require,module,exports){
 "use strict";
-var Block = require("./block")["default"];
-
-function deepCompare () {
-  var i, l, leftChain, rightChain;
-
-  function compare2Objects (x, y) {
-    var p;
-
-    // remember that NaN === NaN returns false
-    // and isNaN(undefined) returns true
-    if (isNaN(x) && isNaN(y) && typeof x === 'number' && typeof y === 'number') {
-         return true;
-    }
-
-    // Compare primitives and functions.
-    // Check if both arguments link to the same object.
-    // Especially useful on step when comparing prototypes
-    if (x === y) {
-        return true;
-    }
-
-    // Works in case when functions are created in constructor.
-    // Comparing dates is a common scenario. Another built-ins?
-    // We can even handle functions passed across iframes
-    if ((typeof x === 'function' && typeof y === 'function') ||
-       (x instanceof Date && y instanceof Date) ||
-       (x instanceof RegExp && y instanceof RegExp) ||
-       (x instanceof String && y instanceof String) ||
-       (x instanceof Number && y instanceof Number)) {
-        return x.toString() === y.toString();
-    }
-
-    // At last checking prototypes as good a we can
-    if (!(x instanceof Object && y instanceof Object)) {
-        return false;
-    }
-
-    if (x.isPrototypeOf(y) || y.isPrototypeOf(x)) {
-        return false;
-    }
-
-    if (x.constructor !== y.constructor) {
-        return false;
-    }
-
-    if (x.prototype !== y.prototype) {
-        return false;
-    }
-
-    // Check for infinitive linking loops
-    if (leftChain.indexOf(x) > -1 || rightChain.indexOf(y) > -1) {
-         return false;
-    }
-
-    // Quick checking of one object beeing a subset of another.
-    // todo: cache the structure of arguments[0] for performance
-    for (p in y) {
-        if (y.hasOwnProperty(p) !== x.hasOwnProperty(p)) {
-            return false;
-        }
-        else if (typeof y[p] !== typeof x[p]) {
-            return false;
-        }
-    }
-
-    for (p in x) {
-        if (y.hasOwnProperty(p) !== x.hasOwnProperty(p)) {
-            return false;
-        }
-        else if (typeof y[p] !== typeof x[p]) {
-            return false;
-        }
-
-        switch (typeof (x[p])) {
-            case 'object':
-            case 'function':
-
-                leftChain.push(x);
-                rightChain.push(y);
-
-                if (!compare2Objects (x[p], y[p])) {
-                    return false;
-                }
-
-                leftChain.pop();
-                rightChain.pop();
-                break;
-
-            default:
-                if (x[p] !== y[p]) {
-                    return false;
-                }
-                break;
-        }
-    }
-
-    return true;
-  }
-
-  if (arguments.length < 1) {
-    return true; //Die silently? Don't know how to handle such case, please help...
-    // throw "Need two or more arguments to compare";
-  }
-
-  for (i = 1, l = arguments.length; i < l; i++) {
-
-      leftChain = []; //Todo: this can be cached
-      rightChain = [];
-
-      if (!compare2Objects(arguments[0], arguments[i])) {
-          return false;
-      }
-  }
-
-  return true;
-}
-
-var Form = function ($container, fields) {
-  this.fields = fields;
-  this.$container = $container;
+var Securable = function(pub, priv, key) {
+  this.loadWithKeys(pub, priv, key);
 };
 
-Form.CARDS = ['slide.life:bank.card', 'slide.life:name'];
+Securable.prototype.loadWithKeys = function(pub, priv, key) {
+  this.publicKey = pub;
+  this.privateKey = priv;
+  this.symmetricKey = key;
+};
 
-Form.createFromIdentifiers = function ($container, identifiers, cb) {
-  Block.getFieldsForIdentifiers(identifiers, function (fields) {
-    var form = new Form($container, fields);
-    cb(form);
+Securable.prototype.generate = function() {
+  Slide.crypto.generateKeys(function(k) {
+    this.publicKey = k.publicKey;
+    this.privateKey = k.privateKey;
+    this.symmetricKey = Slide.crypto.AES.generateKey();
   });
 };
 
-Form.prototype.build = function (userData, options) {
-  var self = this;
-
-  this.userData = userData;
-  this.options = options;
-  this.$form = $('<ul></ul>', { 'class': 'slide-form' }).appendTo(this.$container);
-
-  $.each(this.fields, function (identifier, field) {
-    if (self._isCard(identifier)) {
-      self.$form.append($('<li></li>', { class: 'card-wrapper' }).append(self.createCard(identifier, field)));
-    } else {
-      self.$form.append($('<li></li>', { class: 'compound-wrapper' }).append(self.createCompound(identifier, field)));
-    }
-  });
-
-  this.$form.append(this._createSubmitButton());
-  this.initializeSliders();
+Securable.prototype.encryptedSymKey = function() {
+  return Slide.crypto.encryptStringWithPackedKey(this.symmetricKey, this.publicKey);
 };
 
-Form.prototype._createSubmitButton = function () {
-  return $('<li></li>', {
-    class: 'send-button'
-  }).text('Send').on('click', this.options.onSubmit);
+Securable.prototype.checksum = function() {
+  return Slide.crypto.encryptStringWithPackedKey("", this.symmetricKey);
 };
 
-Form.prototype.initializeSliders = function () {
-  $('.slider').slick({
-    slide: 'li',
-    arrows: false,
-    focusOnSelect: true
-  });
+Securable.prototype.decrypt = function(data) {
+  return Slide.crypto.AES.decryptData(data, this.symmetricKey);
 };
 
-Form.prototype._isCard = function (identifier) {
-  return Form.CARDS.indexOf(identifier) !== -1;
+Securable.prototype.encrypt = function(data) {
+  return Slide.crypto.AES.encryptData(data, this.symmetricKey);
 };
-
-Form.prototype._flattenField = function (identifier, field) {
-  var children = Block.getChildren(field),
-      self = this;
-
-  if (Object.keys(children).length > 0) {
-    return Object.keys(children).reduce(function (merged, id) {
-      return $.extend(merged, self._flattenField(identifier + '.' + id, field[id]));
-    }, {});
-  } else {
-    var leaf = {};
-    leaf[identifier] = field;
-    return leaf;
-  }
-};
-
-Form.prototype._getDataForIdentifier = function (identifier) {
-  var path = Block.getPathForIdentifier(identifier);
-  return this.userData[path.identifier] || [];
-};
-
-Form.prototype._createSlider = function (fields) {
-  var slider = $('<ul></ul>', { class: 'slider'});
-  return slider.append.apply(slider, fields);
-},
-
-Form.prototype._createField = function (identifier, field, data, options /* = {} */) {
-  options = options || {};
-
-  var listItem = $('<li></li>', { class: 'field' }),
-      $labelWrapper = $('<div></div>', { 'class': 'field-label-wrapper' }),
-      $inputWrapper = $('<div></div>', { 'class': 'field-input-wrapper' });
-
-  var input = $('<input>', $.extend({
-    type: 'text',
-    class: 'field-input',
-    value: data,
-    autocorrect: 'off',
-    autocapitalize: 'off',
-    'data-slide-identifier': identifier
-  }, options));
-
-  $inputWrapper.append(input);
-  $labelWrapper.append($('<label></label>').text(field._description));
-  return listItem.append($labelWrapper, $inputWrapper);
-};
-
-Form.prototype._parseRepresentation = function (identifier, field, card) {
-  var self = this,
-      data;
-
-  if (field._representation) {
-    data = [field._representation.replace(/\$\{([^}]+)\}/g, function ($0, $1) {
-      return card[identifier + '.' + $1];
-    })];
-  }
-
-  return data;
-};
-
-Form.prototype.createCard = function (identifier, field) {
-  var self = this;
-  var cards = this._getDataForIdentifier(identifier).map(function (card) {
-    var $cardHeader = self.createCardHeader(identifier, field, card);
-    var $cardSubfields = self.createCardSubfields(identifier, field, card);
-    var $card = $('<li></li>', { class: 'card' }).append($cardHeader, $cardSubfields);
-
-    $card.on('click', '.card-header', function (e) {
-      $card.parent().find('.card-subfields').slideToggle();
-    });
-
-    return $card;
-  });
-
-  return this._createSlider(cards);
-};
-
-Form.prototype.createCardHeader = function (identifier, field, card) {
-  var representation = this._parseRepresentation(identifier, field, card);
-  var $header = $('<ul></ul>', { class: 'field-group card-header' });
-  return $header.append(this._createField(identifier, field, representation, { readonly: true }));
-};
-
-Form.prototype.createCardSubfields = function (identifier, field, card) {
-  var fields = this._flattenField(identifier, field);
-  var compound = [], self = this;
-
-  $.each(fields, function (i, f) {
-    var path = Block.getPathForIdentifier(i);
-    compound.push(self._createField(i, f, card[i]));
-  });
-
-  var $subfields = $('<ul></ul>', { class: 'field-group card-subfields' });
-  return $subfields.append.apply($subfields, compound);
-};
-
-Form.prototype.createCompound = function (identifier, field) {
-  var fields = this._flattenField(identifier, field);
-  var compound = [], self = this;
-
-  $.each(fields, function (i, f) {
-    var data = self._getDataForIdentifier(i);
-    var fs;
-
-    if (data.length > 0) {
-      fs = data.map(function (d) {
-        return self._createField(i, f, d);
-      });
-    } else {
-      fs = [self._createField(i, f, '')];
-    }
-
-    var slider = self._createSlider(fs);
-    compound.push($('<li></li>').append(slider));
-  });
-
-  var $fieldGroup = $('<ul></ul>', { class: 'field-group' });
-  return $fieldGroup.append.apply($fieldGroup, compound);
-};
-
-Form.prototype._getFieldsInElement = function ($element, multi /* = false */) {
-  multi = multi !== undefined;
-
-  var $fields = $element.find('.field-input'),
-      keystore = {};
-
-  $fields.each(function () {
-    var key = $(this).data('slide-identifier'),
-        value = $(this).val();
-
-    if (multi) {
-      keystore[key] = keystore[key] || [];
-      keystore[key].push(value);
-    } else {
-      keystore[key] = value;
-    }
-  });
-
-  return keystore;
-};
-
-Form.prototype._getFieldsForSelector = function (selector, multi /* = false */) {
-  return this._getFieldsInElement(this.$form.find(selector), multi);
-};
-
-Form.prototype.serialize = function () {
-  var cardFieldsSelector = '.card.slick-active .card-subfields';
-  var compoundFieldsSelector = '.compound-wrapper .slick-active';
-
-  var keystore = this._getFieldsForSelector([cardFieldsSelector, compoundFieldsSelector].join(', '));
-
-  return JSON.stringify(keystore);
-};
-
-Form.prototype.getUserData = function () {
-  var compoundData = this._getFieldsForSelector('.compound-wrapper .field:not(.slick-cloned)', true);
-  var cardData = {},
-      self = this;
-
-  this.$form.find('.card-wrapper').each(function (card) {
-    var key = $(this).find('.card .card-header .field-input').data('slide-identifier');
-    cardData[key] = [];
-    $(this).find('.card:not(.slick-cloned) .card-subfields').each(function () {
-      cardData[key].push(self._getFieldsInElement($(this)));
-    });
-  });
-
-  return $.extend(cardData, compoundData);
-};
-
-Form.prototype.getPatchedUserData = function () {
-  var profile = this.userData;
-  var updated = this.getUserData();
-  var patch = {};
-
-  $.each(profile, function (identifier, key) {
-    if (!deepCompare(profile[identifier], updated[identifier])) {
-      patch[identifier] = updated[identifier];
-    }
-  });
-
-  return patch;
-};
-
-exports["default"] = Form;
-},{"./block":4}],8:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 "use strict";
 var api = require("./api")["default"];
 
@@ -31550,6 +31229,13 @@ var User = function(number, pub, priv, key) {
   this.publicKey = pub;
   this.privateKey = priv;
   this.symmetricKey = key;
+};
+
+User.prototype.getId = function() {
+  return this.number;
+};
+User.prototype.getDevice = function() {
+  return { type: 'user', number: this.getId(), key: this.publicKey };
 };
 
 User.prompt = function(cb) {
@@ -31586,9 +31272,24 @@ User.prototype.persist = function() {
   window.localStorage.user = JSON.stringify(obj);
 };
 
+User.prototype.loadRelationships = function(success) {
+  var self = this;
+  $.get(Slide.endpoint("/users/" + this.number + "/vendor_users"),
+        function(encryptedUuids) {
+          var uuids = encryptedUuids.map(function(encryptedUuid) {
+            return Slide.crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
+          });
+          var vendorUsers = uuids.map(function(uuid) {
+            return Slide.VendorUser.new(uuid);
+          });
+          success(vendorUsers);
+        });
+};
+
 User.load = function(fail, success) {
   if( window.localStorage.user ) {
-    success(this.fromObject(JSON.parse(window.localStorage.user)));
+    var ret = this.fromObject(JSON.parse(window.localStorage.user));
+    ret.loadRelationships(success);
   } else {
     fail(success);
   }
@@ -31613,6 +31314,26 @@ User.register = function(number, cb) {
       cb && cb(user);
     }
   });
+};
+
+User.prototype.getProfile = function(cb) {
+  $.get(Slide.endpoint("/users/" + this.number + "/profile"),
+    function(profile) {
+      cb(profile);
+    });
+};
+
+$.patch = function(url, data, cb) {
+  $.ajax({
+    url: url, type: 'PATCH', data: data, success: cb
+  });
+};
+User.prototype.patchProfile = function(patch, cb) {
+  $.patch(Slide.endpoint("/users/" + this.number + "/profile"),
+    JSON.stringify({patch: patch}),
+    function(profile) {
+      cb && cb(profile);
+    });
 };
 
 User.prototype.listen = function(cb) {
@@ -31652,7 +31373,8 @@ var Vendor = function(name, pub, priv, key, chk, id) {
   this.id = id;
 };
 
-Vendor.prototype = User.prototype;
+$.extend(Vendor.prototype, User.prototype);
+
 Vendor.prototype.persist = function() {
   var obj = {
     number: this.number,
@@ -31666,12 +31388,13 @@ Vendor.prototype.persist = function() {
 };
 
 Vendor.fromObject = function(obj) {
-  return new Vendor(obj.name, obj.publicKey, obj.privateKey, obj.symmetricKey, obj.checksum, obj.id);
+  var vendor = new Vendor(obj.name, obj.publicKey, obj.privateKey, obj.symmetricKey, obj.checksum, obj.id);
+  vendor.invite = obj.invite;
+  return vendor;
 };
 
 Vendor.load = function(fail, success) {
   if( window.localStorage.vendor ) {
-    console.log('loaded');
     success(this.fromObject(JSON.parse(window.localStorage.vendor)));
   } else {
     fail(success);
@@ -31679,34 +31402,38 @@ Vendor.load = function(fail, success) {
 };
 
 Vendor.invite = function(name, cb) {
-  api.post('/admin/vendors', {
-    data: { name: name },
-    success: function (vendor) {
-      cb(vendor.invite_code, vendor.id);
-    }
-  });
+  $.post(Slide.endpoint("/admin/vendors"),
+    JSON.stringify({name: name}),
+    function(vendor) {
+      cb(Vendor.fromObject(vendor));
+    });
 };
-
-Vendor.register = function(invite, id, name, cb) {
+$.put = function(url, payload, cb) {
+  $.ajax({ url: url, type: 'PUT', data: payload, success: cb });
+};
+Vendor.prototype.register = function(cb) {
+  var invite = this.invite, name = this.name, id = this.id;
   var keys;
   Slide.crypto.generateKeys(function(k) {
     keys = Slide.crypto.packKeys(k);
   });
   var symmetricKey = Slide.crypto.AES.generateKey();
   var key = Slide.crypto.encryptStringWithPackedKey(symmetricKey, keys.publicKey);
-  var vendor = new this(name, keys.publicKey, keys.privateKey, symmetricKey);
-  vendor.checksum = Slide.crypto.encryptStringWithPackedKey('', keys.publicKey);
-  console.log('posintg', id);
-  $.put(Slide.endpoint('/vendors/' + id),
+  this.publicKey = keys.publicKey;
+  this.privateKey = keys.privateKey;
+  this.symmetricKey = symmetricKey;
+  this.checksum = Slide.crypto.encryptStringWithPackedKey("", keys.publicKey);
+  var self = this;
+  $.put(Slide.endpoint("/vendors/" + id),
     JSON.stringify({
       invite_code: invite,
       key: key,
       public_key: keys.publicKey,
-      checksum: vendor.checksum
+      checksum: this.checksum
     }),
     function(v) {
-      vendor.id = v.id;
-      cb && cb(vendor);
+      this.id = v.id;
+      cb && cb(self);
     });
 };
 
@@ -31718,15 +31445,81 @@ Vendor.prototype.listen = function(cb) {
   };
 };
 
-Vendor.prototype.createForm = function(name, formFields) {
-  ajax.post('/vendors/' + this.id + '/vendor_forms', {
-    data: {
-      name: name,
-      form_fields: formFields,
-      checksum: this.checksum
-    }
-  });
+Vendor.prototype.createForm = function(name, formFields, cb) {
+  var payload = {
+    name: name,
+    form_fields: formFields,
+    checksum: this.checksum
+  };
+  $.post(Slide.endpoint("/vendors/" + this.id + "/vendor_forms"),
+    JSON.stringify(payload),
+    function(form) {
+      cb && cb(Slide.VendorForm.fromObject(form));
+    });
 };
 
 exports["default"] = Vendor;
-},{"./api":3,"./user":8}]},{},[1])
+},{"./api":3,"./user":8}],10:[function(require,module,exports){
+"use strict";
+var VendorForm = function(name, fields, vendorId) {
+  this.name = name;
+  this.fields = fields;
+  this.vendor = vendorId;
+};
+
+VendorForm.get = function(id, cb) {
+  $.get(Slide.endpoint("/vendor_forms/" + id),
+    function(vendor) {
+      cb(VendorForm.fromObject(vendor));
+    });
+};
+
+VendorForm.prototype.initialize = function(cb) {
+  var self = this;
+  // TODO: perhaps allow a vendor form to be posted after the fact
+};
+
+VendorForm.fromObject = function(obj) {
+  var form = new VendorForm(obj.name, obj.form_fields, obj.vendor_id);
+  form.id = obj.id;
+  return form;
+};
+
+exports["default"] = VendorForm;
+},{}],11:[function(require,module,exports){
+"use strict";
+var VendorUser = function(uuid) {
+  this.uuid = uuid;
+};
+
+VendorUser.prototype.fromObject = function(obj) {
+  this.name = obj.name;
+  this.description = obj.description;
+  this.formFields = obj.formFields;
+  this.vendor = obj.vendor;
+  this.checksum = obj.checksum || Slide.crypto.encryptStringWithPackedKey("", obj.key);
+};
+
+VendorUser.prototype.load = function(cb) {
+  var self = this;
+  $.get(Slide.endpoint("/vendor_users/" + this.uuid),
+        function(vendorUserData) {
+          self.fromObject(vendorUserData);
+          cb(self);
+        });
+};
+
+VendorUser.prototype.loadVendorForms = function(cb) {
+  $.get(Slide.endpoint("/vendor_users/" + this.uuid + "/vendor_forms"),
+        function(vendorForms) {
+          var vendorFormHash = {};
+          vendorForms.forEach(function(vf) {
+            var vendorForm = Slide.VendorForm.fromObject(vf);
+            vendorFormHash[vendorForm.name] = vendorForm;
+          });
+          cb(vendorFormHash);
+        });
+};
+
+$.extend(VendorUser.prototype, Slide.User.prototype);
+},{}]},{},[1])

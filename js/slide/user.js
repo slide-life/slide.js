@@ -7,6 +7,13 @@ var User = function(number, pub, priv, key) {
   this.symmetricKey = key;
 };
 
+User.prototype.getId = function() {
+  return this.number;
+};
+User.prototype.getDevice = function() {
+  return { type: 'user', number: this.getId(), key: this.publicKey };
+};
+
 User.prompt = function(cb) {
   var user = new this();
   var form = $("<form><input type='text'><input type='submit' value='Send'></form>");
@@ -41,9 +48,24 @@ User.prototype.persist = function() {
   window.localStorage.user = JSON.stringify(obj);
 };
 
+User.prototype.loadRelationships = function(success) {
+  var self = this;
+  $.get(Slide.endpoint("/users/" + this.number + "/vendor_users"),
+        function(encryptedUuids) {
+          var uuids = encryptedUuids.map(function(encryptedUuid) {
+            return Slide.crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
+          });
+          var vendorUsers = uuids.map(function(uuid) {
+            return Slide.VendorUser.new(uuid);
+          });
+          success(vendorUsers);
+        });
+};
+
 User.load = function(fail, success) {
   if( window.localStorage.user ) {
-    success(this.fromObject(JSON.parse(window.localStorage.user)));
+    var ret = this.fromObject(JSON.parse(window.localStorage.user));
+    ret.loadRelationships(success);
   } else {
     fail(success);
   }
@@ -68,6 +90,26 @@ User.register = function(number, cb) {
       cb && cb(user);
     }
   });
+};
+
+User.prototype.getProfile = function(cb) {
+  $.get(Slide.endpoint("/users/" + this.number + "/profile"),
+    function(profile) {
+      cb(profile);
+    });
+};
+
+$.patch = function(url, data, cb) {
+  $.ajax({
+    url: url, type: 'PATCH', data: data, success: cb
+  });
+};
+User.prototype.patchProfile = function(patch, cb) {
+  $.patch(Slide.endpoint("/users/" + this.number + "/profile"),
+    JSON.stringify({patch: patch}),
+    function(profile) {
+      cb && cb(profile);
+    });
 };
 
 User.prototype.listen = function(cb) {

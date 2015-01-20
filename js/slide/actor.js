@@ -46,6 +46,14 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
   });
 };
 
+Actor.prototype.getId = function() {
+  return this.id;
+};
+
+Actor.prototype.getDevice = function() {
+  return { type: 'actor', id: this.getId(), key: this.publicKey };
+};
+
 Actor.prototype.listen = function(cb) {
   var socket = api.socket('/actors/' + this.id + '/listen');
   var self = this;
