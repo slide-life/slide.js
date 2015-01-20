@@ -1,0 +1,139 @@
+@import 'open-sans/open-sans.scss';
+@import '../bower_components/slick-carousel/slick/slick.scss';
+
+$light-grey:  #F3F3F3;
+$medium-grey: #C0C0C0;
+$dark-grey:   #1C1C1C;
+
+$light-green: #22C064;
+
+$field-height: 58px;
+$field-radius: 4px;
+$field-spacing: 12px;
+$field-label-width: 50%;
+
+*:not(input, textarea) {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+}
+
+.slide-form, .slide-form ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+.slide-form {
+  font-family: 'Open Sans';
+  font-size: 12px;
+  background-color: $light-grey;
+  list-style-type: none;
+  margin: 0;
+  padding: $field-spacing 0;
+  padding-top: 0;
+  overflow: hidden;
+}
+
+/* Field groups */
+
+.slide-form .field-group {
+  margin-top: $field-spacing;
+}
+
+.slide-form .field-group .field {
+  font-weight: 600;
+  background-color: white;
+  height: $field-height;
+  line-height: $field-height;
+  border: 1px solid $medium-grey;
+  border-bottom: none;
+}
+
+.slide-form .field-group .field-label-wrapper {
+  float: left;
+  width: $field-label-width;
+  padding: 0 $field-spacing;
+  box-sizing: border-box;
+}
+
+.slide-form .field-group .field-input-wrapper {
+  float: right;
+  width: 100% - $field-label-width;
+  padding: 0 $field-spacing;
+  box-sizing: border-box;
+  text-align: right;
+}
+
+.slide-form .field-group .field-input {
+  font-family: 'Open Sans';
+  color: $medium-grey;
+  font-size: 12px;
+  font-weight: 600;
+  background: none;
+  width: 100%;
+  text-align: right;
+  border: none;
+  outline: none;
+  -webkit-appearance: none;
+   -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+
+.slide-form .send-button {
+  background-color: $light-green;
+  color: white;
+  width: 100%;
+  margin-top: $field-spacing;
+  text-align: center;
+  height: $field-height;
+  line-height: $field-height;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Compound */
+
+.slide-form .compound-wrapper li:first-child .field {
+  border-top-left-radius: $field-radius;
+  border-top-right-radius: $field-radius;
+}
+
+.slide-form .compound-wrapper li:last-child .field {
+  border-bottom-left-radius: $field-radius;
+  border-bottom-right-radius: $field-radius;
+  border-bottom: 1px solid $medium-grey;
+}
+
+/* Cards */
+
+.slide-form .card-wrapper .card-header .field {
+  border-bottom: 1px solid $medium-grey;
+  box-shadow: 0px 2px 4px 0px rgba(160, 160, 160, 0.40);
+}
+
+.slide-form .card-wrapper .card-header .field {
+  border-radius: $field-radius;
+}
+
+.slide-form .card-wrapper .card-subfields {
+  margin-top: 0;
+  display: none;
+  position: relative;
+  top: -$field-radius;
+  z-index: -99;
+}
+
+.slide-form .card-wrapper .card-subfields .field:first-child {
+  border-top: none;
+}
+
+.slide-form .card-wrapper .card-subfields .field:last-child {
+  border-bottom-left-radius: $field-radius;
+  border-bottom-right-radius: $field-radius;
+  border-bottom: 1px solid $medium-grey;
+}
+
+/* Slick styling */
+
+.slick-slide {
+  margin: 0 $field-spacing;
+}

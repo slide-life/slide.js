@@ -25,7 +25,8 @@ module.exports = function (grunt) {
     },
 
     exec: {
-      "bundle": "( cd bower_components/forge; npm run bundle )"
+      bundle: 'cd bower_components/forge; npm run bundle; cd ..',
+      copy: 'cp -R img dist; cp -R fonts dist'
     },
 
     concat: {
@@ -33,8 +34,11 @@ module.exports = function (grunt) {
         separator: ';'
       },
       dist: {
-        src: ['bower_components/forge/js/forge.bundle.js', 'build/browser.js'],
-        dest: 'dist/slide.js'
+        src: [
+          'bower_components/forge/js/forge.bundle.js',
+          'bower_components/slick-carousel/slick/slick.js',
+          'build/browser.js'],
+        dest: 'dist/js/slide.js'
       }
     },
 
@@ -42,6 +46,26 @@ module.exports = function (grunt) {
       files: ['lib/**/*.js'],
       options: {
         jshintrc: '.jshintrc'
+      }
+    },
+
+    sass: {
+      dist: {
+        files: {
+          'dist/css/slide.css': 'scss/slide.scss'
+        }
+      }
+    },
+
+    watch: {
+      jshint: {
+        files: ['lib/**/*.js'],
+        tasks: ['jshint']
+      },
+
+      sass: {
+        files: ['scss/**/*.scss'],
+        tasks: ['sass']
       }
     }
   });
@@ -52,7 +76,9 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-es6-module-transpiler');
   grunt.loadNpmTasks('grunt-exec');
   grunt.loadNpmTasks('grunt-contrib-jshint');
+  grunt.loadNpmTasks('grunt-contrib-sass');
+  grunt.loadNpmTasks('grunt-contrib-watch');
 
-  grunt.registerTask('default', ['clean', 'transpile', 'browserify', 'exec', 'concat']);
+  grunt.registerTask('default', ['clean', 'transpile', 'browserify', 'exec', 'concat', 'sass']);
   grunt.registerTask('test', 'jshint');
 };
