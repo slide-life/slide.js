@@ -28619,6 +28619,14 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
   });
 };
 
+Actor.prototype.getId = function() {
+  return this.id;
+};
+
+Actor.prototype.getDevice = function() {
+  return { type: 'actor', id: this.getId(), key: this.publicKey };
+};
+
 Actor.prototype.listen = function(cb) {
   var socket = new WebSocket(Slide.endpoint('ws://', '/actors/' + this.id + '/listen'));
   var self = this;
@@ -29017,6 +29025,13 @@ var User = function(number, pub, priv, key) {
   this.symmetricKey = key;
 };
 
+User.prototype.getId = function() {
+  return this.number;
+};
+User.prototype.getDevice = function() {
+  return { type: 'user', number: this.getId(), key: this.publicKey };
+};
+
 User.prompt = function(cb) {
   var user = new this();
   var form = $("<form><input type='text'><input type='submit' value='Send'></form>");
@@ -29091,6 +29106,7 @@ $.patch = function(url, data, cb) {
 };
 User.prototype.patchProfile = function(patch, cb) {
   $.patch(Slide.endpoint("/users/" + this.number + "/profile"),
+    JSON.stringify({patch: patch}),
     function(profile) {
       cb && cb(profile);
     });
@@ -29144,11 +29160,12 @@ Vendor.prototype.persist = function() {
   window.localStorage.vendor = JSON.stringify(obj);
 };
 Vendor.fromObject = function(obj) {
-  return new Vendor(obj.name, obj.publicKey, obj.privateKey, obj.symmetricKey, obj.checksum, obj.id);
+  var vendor = new Vendor(obj.name, obj.publicKey, obj.privateKey, obj.symmetricKey, obj.checksum, obj.id);
+  vendor.invite = obj.invite;
+  return vendor;
 };
 Vendor.load = function(fail, success) {
   if( window.localStorage.vendor ) {
-    console.log("loaded");
     success(this.fromObject(JSON.parse(window.localStorage.vendor)));
   } else {
     fail(success);
@@ -29158,23 +29175,25 @@ Vendor.invite = function(name, cb) {
   $.post(Slide.endpoint("/admin/vendors"),
     JSON.stringify({name: name}),
     function(vendor) {
-      console.log("vendor", vendor);
-      cb(vendor.invite_code, vendor.id);
+      cb(Vendor.fromObject(vendor));
     });
 };
 $.put = function(url, payload, cb) {
   $.ajax({ url: url, type: 'PUT', data: payload, success: cb });
 };
-Vendor.register = function(invite, id, name, cb) {
+Vendor.prototype.register = function(cb) {
+  var invite = this.invite, name = this.name, id = this.id;
   var keys;
   Slide.crypto.generateKeys(function(k) {
     keys = Slide.crypto.packKeys(k);
   });
   var symmetricKey = Slide.crypto.AES.generateKey();
   var key = Slide.crypto.encryptStringWithPackedKey(symmetricKey, keys.publicKey);
-  var vendor = new this(name, keys.publicKey, keys.privateKey, symmetricKey);
+  this.publicKey = keys.publicKey;
+  this.privateKey = keys.privateKey
+  this.symmetricKey = symmetricKey;
   vendor.checksum = Slide.crypto.encryptStringWithPackedKey("", keys.publicKey);
-  console.log("posintg", id);
+  var self = this;
   $.put(Slide.endpoint("/vendors/" + id),
     JSON.stringify({
       invite_code: invite,
@@ -29184,7 +29203,7 @@ Vendor.register = function(invite, id, name, cb) {
     }),
     function(v) {
       vendor.id = v.id;
-      cb && cb(vendor);
+      cb && cb(self);
     });
 };
 Vendor.prototype.listen = function(cb) {
@@ -29216,17 +29235,16 @@ var VendorForm = function(name, fields, vendorId) {
   this.vendor = vendorId;
 };
 
-VendorForm.prototype.initialize = function(cb) {
-  $.post(Slide.endpoint("/vendors/" + this.vendorId + "/vendor_forms"),
-    JSON.stringify({
-      form_fields: this.fields,
-      name: this.name,
-      fields: this.fields
-    }),
-    function(form) {
-      console.log(form);
-      cb && cb(form);
+VendorForm.get = function(id) {
+  $.get(Slide.endpoint("/vendor_forms/" + id),
+    function(vendor) {
+      cb(VendorForm.fromObject(vendor));
     });
+};
+
+VendorForm.prototype.initialize = function(cb) {
+  var self = this;
+  // TODO: perhaps allow a vendor form to be posted after the fact
 };
 
 VendorForm.fromObject = function(obj) {
