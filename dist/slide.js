@@ -28604,15 +28604,14 @@ Actor.prototype.initialize = function(cb) {
 Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
   var self = this;
   this.initialize(function(actor) {
-      self.id = actor.id;
-      self.listen(function(fields) {
-        // UI shit
-        $('#modal').modal('toggle');
-        onMessage(fields);
-      });
+    self.id = actor.id;
+    self.listen(function(fields) {
+      $('#modal').modal('toggle');
+      onMessage(fields);
+    });
 
-      var conversation = new Slide.Conversation(self.id, downstream, onCreate);
-      self.key = conversation.symmetricKey;
+    var conversation = new Slide.Conversation(self.id, downstream, onCreate);
+    self.key = conversation.symmetricKey;
   });
 };
 
@@ -28755,14 +28754,16 @@ exports["default"] = Block;
 "use strict";
 var Conversation = function(upstream, downstream, cb) {
   var key = Slide.crypto.AES.generateKey();
-  Conversation.FromObject.call(this, {
+  var obj = {
     symmetricKey: key,
     key: Slide.crypto.encryptStringWithPackedKey(key, downstream.key),
     upstream_id: upstream,
     upstream_type: 'actor',
-    downstream_id: downstream.downstream,
     downstream_type: downstream.type
-  }, cb.bind(this));
+  };
+  var device = downstream.type == 'actor' ? 'downstream_id' : 'downstream_number';
+  obj[device] = downstream.downstream;
+  Conversation.FromObject.call(this, obj, cb.bind(this));
 };
 
 Conversation.FromObject = function(obj, cb) {
@@ -28772,13 +28773,12 @@ Conversation.FromObject = function(obj, cb) {
     type: obj.downstream_type.toLowerCase(), id: obj.downstream_id
   } : {
     // TODO: need number
-    type: obj.downstream_type.toLowerCase(), number: obj.downstream_id
+    type: obj.downstream_type.toLowerCase(), number: obj.downstream_number
   };
   var upstream_pack = obj.upstream_type.toLowerCase() == "actor" ? {
     type: obj.upstream_type.toLowerCase(), id: obj.upstream_id
   } : {
-    // TODO: need number
-    type: obj.upstream_type.toLowerCase(), number: obj.upstream_id
+    type: obj.upstream_type.toLowerCase(), number: obj.upstream_number
   };
   var payload = {
     key: obj.key,
@@ -28941,8 +28941,11 @@ exports["default"] = function () {
 }
 },{}],6:[function(require,module,exports){
 "use strict";
-var User = function() {
-
+var User = function(number, pub, priv, key) {
+  this.number = number;
+  this.publicKey = pub;
+  this.privateKey = priv;
+  this.symmetricKey = key;
 };
 
 User.prompt = function(cb) {
@@ -28955,7 +28958,7 @@ User.prompt = function(cb) {
     $.get(Slide.endpoint('/users/' + number + '/public_key'), function(resp) {
       var key = resp.public_key;
       user.number = number;
-      user.key = key;
+      user.symmetricKey = key;
       cb.call(user, number, key);
     });
   });
@@ -28963,10 +28966,67 @@ User.prompt = function(cb) {
   return user;
 };
 
+User.fromObject = function(obj) {
+  return new User(obj.number, obj.publicKey, obj.privateKey, obj.symmetricKey);
+};
+
+User.prototype.persist = function() {
+  var obj = {
+    number: this.number,
+    publicKey: this.publicKey,
+    privateKey: this.privateKey,
+    symmetricKey: this.symmetricKey
+  };
+  window.localStorage.user = JSON.stringify(obj);
+};
+
+User.load = function(fail, success) {
+  if( window.localStorage.user ) {
+    success(User.fromObject(JSON.parse(window.localStorage.user)));
+  } else {
+    fail(success);
+  }
+};
+
+User.register = function(number, cb) {
+  var keys;
+  var user = new User();
+  Slide.crypto.generateKeys(function(k) {
+    keys = Slide.crypto.packKeys(k);
+  });
+  var symmetricKey = Slide.crypto.AES.generateKey();
+  var key = Slide.crypto.encryptStringWithPackedKey(symmetricKey, keys.publicKey);
+  user.symmetricKey = symmetricKey;
+  user.publicKey = keys.publicKey;
+  user.privateKey = keys.privateKey;
+  user.number = number;
+  $.post(Slide.endpoint("/users"),
+    JSON.stringify({ key: key, public_key: keys.publicKey, user: number }),
+    function(u) {
+      user.id = u.id;
+      cb && cb(user);
+    });
+};
+
+User.prototype.listen = function(cb) {
+  var socket = new WebSocket(Slide.endpoint('ws://', '/users/' + this.number + '/listen'));
+  var self = this;
+  socket.onmessage = function (event) {
+    var message = JSON.parse(event.data);
+    if( message.verb == "verb_request" ) {
+      cb(message.payload.blocks, message.payload.conversation);
+    } else {
+      var data = message.payload.fields;
+      cb(Slide.crypto.AES.decryptData(data, self.symmetricKey));
+    }
+  };
+};
+
+
 User.prototype.requestPrivateKey = function(cb) {
   var actor = new Slide.Actor();
   var self = this;
-  actor.openRequest(['private-key'], this.number, this.key, function(fields) {
+  actor.openRequest(['private-key'], this.number, this.symmetricKey, function(fields) {
     cb.call(self, fields['private-key']);
   });
 };
