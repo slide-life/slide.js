@@ -28629,6 +28629,8 @@ Actor.prototype.listen = function(cb) {
 exports["default"] = Actor;
 },{}],3:[function(require,module,exports){
 "use strict";
+'use strict';
+
 var Block = {
   _inherits: function (field) {
     if ('_inherits' in field) {
@@ -28662,8 +28664,8 @@ var Block = {
     return Block._separatePath(Block._pathOf(field)).pop();
   },
 
-  _resolve: function (separated_path, block) {
-    var remaining_path = separated_path.slice(0);
+  _resolve: function (hierarchy, block) {
+    var remaining_path = hierarchy.slice(0);
     var field = block.schema;
     while (remaining_path[0] in field) {
       field = field[remaining_path[0]];
@@ -28671,7 +28673,7 @@ var Block = {
     }
 
     if (remaining_path.length == 0) {
-      return separated_path;
+      return hierarchy;
     }
 
     var ret = '';
@@ -28690,14 +28692,14 @@ var Block = {
     return ret;
   },
 
-  _resolveField: function (separated_path, block) {
-    return Block._resolve(separated_path, block).reduce(function (obj, key) {
+  _resolveField: function (hierarchy, block) {
+    return Block._resolve(hierarchy, block).reduce(function (obj, key) {
       return obj[key];
     }, block.schema);
   },
 
-  _retrieveField: function (wrapper, block, cb) {
-    var field = Block._resolveField(wrapper.path, block);
+  _retrieveField: function (path, block, cb) {
+    var field = Block._resolveField(path.hierarchy, block);
 
     var deferreds = [];
 
