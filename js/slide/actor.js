@@ -1,6 +1,6 @@
 function Actor(name) {
   var self = this;
-  if( name ) this.name = name;
+  if (name) { this.name = name; }
   Slide.crypto.generateKeys(function(keys) {
     keys = Slide.crypto.packKeys(keys);
     self.publicKey = keys.publicKey;
@@ -24,7 +24,7 @@ Actor.prototype.openRequest = function(blocks, downstream, onMessage) {
 };
 
 Actor.prototype.initialize = function(cb) {
-  $.post(Slide.endpoint("/actors"),
+  $.post(Slide.endpoint('/actors'),
     JSON.stringify({key: this.publicKey}), cb.bind(this));
 };
 
@@ -47,11 +47,11 @@ Actor.prototype.listen = function(cb) {
   var self = this;
   socket.onmessage = function (event) {
     var message = JSON.parse(event.data);
-    if( message.verb == "verb_request" ) {
+    if( message.verb === 'verb_request' ) {
       cb(message.payload.blocks, message.payload.conversation);
     } else {
       var data = message.payload.fields;
-      console.log("dec", self.key);
+      console.log('dec', self.key);
       cb(Slide.crypto.AES.decryptData(data, self.key));
     }
   };

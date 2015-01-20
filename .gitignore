@@ -1,5 +1,8 @@
 node_modules
 bower_components
 build
-.DS_STORE
 *.swp
+.DS_Store
+.sass-cache
+dist/css/slide.css.map
+

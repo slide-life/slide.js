@@ -4,7 +4,7 @@ var Vendor = function(name, pub, priv, key, chk, id) {
   this.publicKey = pub;
   this.privateKey = priv;
   this.symmetricKey = key;
-  this.checksum = chk || Slide.crypto.encryptStringWithPackedKey("", pub);
+  this.checksum = chk || Slide.crypto.encryptStringWithPackedKey('', pub);
   this.name = name;
   this.id = id;
 };
@@ -25,17 +25,17 @@ Vendor.fromObject = function(obj) {
 };
 Vendor.load = function(fail, success) {
   if( window.localStorage.vendor ) {
-    console.log("loaded");
+    console.log('loaded');
     success(this.fromObject(JSON.parse(window.localStorage.vendor)));
   } else {
     fail(success);
   }
 };
 Vendor.invite = function(name, cb) {
-  $.post(Slide.endpoint("/admin/vendors"),
+  $.post(Slide.endpoint('/admin/vendors'),
     JSON.stringify({name: name}),
     function(vendor) {
-      console.log("vendor", vendor);
+      console.log('vendor', vendor);
       cb(vendor.invite_code, vendor.id);
     });
 };
@@ -50,9 +50,9 @@ Vendor.register = function(invite, id, name, cb) {
   var symmetricKey = Slide.crypto.AES.generateKey();
   var key = Slide.crypto.encryptStringWithPackedKey(symmetricKey, keys.publicKey);
   var vendor = new this(name, keys.publicKey, keys.privateKey, symmetricKey);
-  vendor.checksum = Slide.crypto.encryptStringWithPackedKey("", keys.publicKey);
-  console.log("posintg", id);
-  $.put(Slide.endpoint("/vendors/" + id),
+  vendor.checksum = Slide.crypto.encryptStringWithPackedKey('', keys.publicKey);
+  console.log('posintg', id);
+  $.put(Slide.endpoint('/vendors/' + id),
     JSON.stringify({
       invite_code: invite,
       key: key,
@@ -68,7 +68,7 @@ Vendor.prototype.listen = function(cb) {
   var socket = new WebSocket(Slide.endpoint('ws://', '/vendors/' + this.number + '/listen'));
   var self = this;
   socket.onmessage = function (event) {
-    console.log("refresh");
+    console.log('refresh');
   };
 };
 Vendor.prototype.createForm = function(name, formFields) {
@@ -77,7 +77,7 @@ Vendor.prototype.createForm = function(name, formFields) {
     form_fields: formFields,
     checksum: this.checksum
   };
-  $.post(Slide.endpoint("/vendors/" + this.id + "/vendor_forms"),
+  $.post(Slide.endpoint('/vendors/' + this.id + '/vendor_forms'),
     JSON.stringify(payload),
     function(form) {
       console.log(form);

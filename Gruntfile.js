@@ -9,7 +9,7 @@ module.exports = function (grunt) {
       main: {
         type: 'cjs',
         files: [{
-          cwd: 'lib/',
+          cwd: 'js/',
           expand: true,
           dest: 'build/',
           src: '**/*.js'
@@ -25,27 +25,53 @@ module.exports = function (grunt) {
     },
 
     exec: {
-      "bundle": "( cd bower_components/forge; npm run bundle )"
+      bundle: 'cd bower_components/forge; npm run bundle',
+      copyFonts: 'mkdir dist; cp -R img dist; cp -R fonts dist'
     },
 
     concat: {
       options: {
         separator: ';'
       },
+
       dist: {
-        src: ['bower_components/forge/js/forge.bundle.js', 'build/browser.js'],
-        dest: 'dist/slide.js'
+        src: [
+          'bower_components/forge/js/forge.bundle.js',
+          'bower_components/slick-carousel/slick/slick.js',
+          'build/browser.js'],
+        dest: 'dist/js/slide.js'
       },
+
       jquery: {
-        src: ['jquery.js', 'dist/slide.js'],
-        dest: 'dist/slide.jquery.js'
+        src: ['bower_components/jquery/dist/jquery.min.js', 'dist/js/slide.js'],
+        dest: 'dist/js/slide.jquery.js'
       }
     },
 
     jshint: {
-      files: ['lib/**/*.js'],
+      files: ['js/**/*.js'],
       options: {
         jshintrc: '.jshintrc'
+      }
+    },
+
+    sass: {
+      dist: {
+        files: {
+          'dist/css/slide.css': 'scss/slide.scss'
+        }
+      }
+    },
+
+    watch: {
+      jshint: {
+        files: ['js/**/*.js'],
+        tasks: ['jshint']
+      },
+
+      sass: {
+        files: ['scss/**/*.scss'],
+        tasks: ['sass']
       }
     }
   });
@@ -56,7 +82,9 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-es6-module-transpiler');
   grunt.loadNpmTasks('grunt-exec');
   grunt.loadNpmTasks('grunt-contrib-jshint');
+  grunt.loadNpmTasks('grunt-contrib-sass');
+  grunt.loadNpmTasks('grunt-contrib-watch');
 
-  grunt.registerTask('default', ['clean', 'transpile', 'browserify', 'exec', 'concat']);
+  grunt.registerTask('default', ['clean', 'transpile', 'browserify', 'exec', 'concat', 'sass']);
   grunt.registerTask('test', 'jshint');
 };

@@ -1,9 +1,7 @@
-'use strict';
-
 var Block = {
   _inherits: function (field) {
     if ('_inherits' in field) {
-      return [field['_inherits']];
+      return [field._inherits];
     } else {
       return [];
     }
@@ -11,7 +9,7 @@ var Block = {
 
   _components: function (field) {
     if ('_components' in field) {
-      return field['_components'];
+      return [field._components];
     } else {
       return [];
     }
