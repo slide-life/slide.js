@@ -29077,6 +29077,25 @@ User.register = function(number, cb) {
     });
 };
 
+User.prototype.getProfile = function(cb) {
+  $.get(Slide.endpoint("/users/" + this.number + "/profile"),
+    function(profile) {
+      cb(profile);
+    });
+};
+
+$.patch = function(url, data, cb) {
+  $.ajax({
+    url: url, type: 'PATCH', data: data, success: cb
+  });
+};
+User.prototype.patchProfile = function(patch, cb) {
+  $.patch(Slide.endpoint("/users/" + this.number + "/profile"),
+    function(profile) {
+      cb && cb(profile);
+    });
+};
+
 User.prototype.listen = function(cb) {
   var socket = new WebSocket(Slide.endpoint('ws://', '/users/' + this.number + '/listen'));
   var self = this;
