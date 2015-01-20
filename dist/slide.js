@@ -28531,7 +28531,7 @@ var Conversation = require("./slide/conversation")["default"];
 var User = require("./slide/user")["default"];
 var Block = require("./slide/block")["default"];
 
-$('body').append('<div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
+$('body').append('<div class="modal fade" style="display: none" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
 var Slide = {
   HOST: 'api-sandbox.slide.life',
@@ -28571,25 +28571,40 @@ var Slide = {
 window.Slide = Slide;
 },{"./slide/actor":2,"./slide/block":3,"./slide/conversation":4,"./slide/crypto":5,"./slide/user":6}],2:[function(require,module,exports){
 "use strict";
-function Actor() {
+function Actor(name) {
   var self = this;
+  if( name ) this.name = name;
   Slide.crypto.generateKeys(function(keys) {
     self.publicKey = keys.publicKey;
     self.privateKey = keys.privateKey;
   });
 }
 
+Actor.fromObject = function(obj) {
+  var actor = new Actor();
+  actor.privateKey = obj.privateKey;
+  actor.publicKey = obj.publicKey;
+  actor.name = obj.name;
+  actor.id = obj.id;
+  return actor;
+};
+
 Actor.prototype.openRequest = function(blocks, downstream, downstreamKey, cb) {
   this.openConversation(downstream, downstreamKey, function(conversation) {
-    conversation.request(blocks);
+    conversation.request(blocks, function() {
+      // conversation.deposit({key: ""});
+    });
   }, cb);
+};
+
+Actor.prototype.initialize = function(cb) {
+  $.post(Slide.endpoint("/actors"),
+    JSON.stringify({key: self.publicKey}), cb);
 };
 
 Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate, onMessage) {
   var self = this;
-  $.post(Slide.endpoint('/actors'),
-    JSON.stringify({key: self.publicKey}),
-    function(actor) {
+  this.initialize(function(actor) {
       self.id = actor.id;
       self.listen(function(fields) {
         // UI shit
@@ -28599,7 +28614,7 @@ Actor.prototype.openConversation = function(downstream, downstreamKey, onCreate,
 
       var conversation = new Slide.Conversation(self.id, downstream, downstreamKey, onCreate);
       self.key = conversation.symmetricKey;
-    });
+  });
 };
 
 Actor.prototype.listen = function(cb) {
@@ -28614,15 +28629,9 @@ Actor.prototype.listen = function(cb) {
 exports["default"] = Actor;
 },{}],3:[function(require,module,exports){
 "use strict";
-function flatMap (xs, fn) {
-  return xs.reduce(function(a, b) {
-    return a.concat(fn(b));
-  }, []);
-}
-
 var Block = {
-  _retrieveField: function (wrapper, block, cb) {
-    var field = wrapper.path.reduce(function (obj, key) {
+  _retrieveField: function (path, block, cb) {
+    var field = path.hierarchy.reduce(function (obj, key) {
       // TODO: check that key is set on object
       return obj[key];
     }, block.schema);
@@ -28630,24 +28639,29 @@ var Block = {
     var deferreds = [];
 
     if (field._components) {
-      field._components.forEach(function (identifier) {
+      field._components.map(Block.getPathForIdentifier).forEach(function (componentPath) {
         var deferred = new $.Deferred();
         deferreds.push(deferred);
-        Block._retrieveFieldFromIdentifier(identifier, function (f) {
-          field[identifier.split('.').pop()] = f;
+
+        Block._retrieveFieldFromPath(componentPath, function (f) {
+          field[componentPath.hierarchy.pop()] = f;
           deferred.resolve();
         });
       });
     }
 
     if (field._inherits) {
+      var componentPath = Block.getPathForIdentifier(field._inherits);
+      field._inherits = componentPath.identifier;
+
       var deferred = new $.Deferred();
       deferreds.push(deferred);
-      Block._retrieveFieldFromIdentifier(field._inherits, function (f) {
-        field = $.extend({}, f, field);
+
+      Block._retrieveFieldFromPath(componentPath, function (f) {
+        field = $.extend(f, field);
 
         f._assigns = f._assigns || [];
-        f._assigns.push(wrapper.identifier);
+        f._assigns.push(path.identifier);
 
         deferred.resolve();
       });
@@ -28659,25 +28673,28 @@ var Block = {
     });
   },
 
-  _retrieveBlocks: function (identifier, cb) {
-    if (identifier.indexOf(':') === -1) {
-      identifier = Slide.DEFAULT_ORGANIZATION + ':' + identifier;
-    }
+  getPathForIdentifier: function (identifier) {
+    identifier = (identifier.indexOf(':') < 0) ? Slide.DEFAULT_ORGANIZATION + ':' + identifier : identifier;
+    var deconstructed = identifier.split(':');
+    return {
+      organization: deconstructed[0],
+      hierarchy: deconstructed[1].split('.'),
+      identifier: identifier
+    };
+  },
 
-    var i = identifier.split(':'),
-        wrapper = { organization: i[0], path: i[1].split('.'), identifier: identifier };
-
-    if (Slide.CACHED_BLOCKS[wrapper.organization]) {
-      cb(wrapper, Slide.CACHED_BLOCKS[wrapper.organization]);
+  _retrieveBlock: function (path, cb) {
+    if (Slide.CACHED_BLOCKS[path.organization]) {
+      cb(Slide.CACHED_BLOCKS[path.organization]);
     } else {
-      $.get(Slide.endpoint('/blocks?organization=' + wrapper.organization), function (block) {
-        cb(wrapper, block);
+      $.get(Slide.endpoint('/blocks?organization=' + path.organization), function (block) {
+        cb(block);
       });
     }
   },
 
-  _flattenField: function (field) {
-    var children = [],
+  deconstructField: function (field) {
+    var children = {},
         annotations = {};
 
     for (var key in field) {
@@ -28685,47 +28702,46 @@ var Block = {
         if (key[0] === '_') {
           annotations[key] = field[key];
         } else {
-          children.push(field[key]);
+          children[key] = field[key];
         }
       }
     }
 
-    if (children.length > 0) {
-      return flatMap(children, Block._flattenField); // Ignore the parent
-    } else {
-      return [annotations]; // On a leaf
-    }
+    return { children: children, annotations: annotations };
   },
 
-  _retrieveFieldFromIdentifier: function (identifier, cb) {
-    Block._retrieveBlocks(identifier, function (wrapper, blocks) {
-      Block._retrieveField(wrapper, blocks, function (field) {
+  getChildren: function (field) {
+    return Block.deconstructField(field).children;
+  },
+
+  getAnnotations: function (field) {
+    return Block.deconstructField(field).annotations;
+  },
+
+  _retrieveFieldFromPath: function (path, cb) {
+    Block._retrieveBlock(path, function (block) {
+      Block._retrieveField(path, block, function (field) {
         cb(field);
       });
     });
   },
 
   getFieldsForIdentifiers: function (identifiers, cb) {
-    var fields = [],
-        deferreds = [];
+    var fields = {},
+        deferreds = [],
+        paths = identifiers.map(Block.getPathForIdentifier);
 
-    identifiers.map(function (identifier) {
+    paths.map(function (path) {
       var deferred = new $.Deferred();
       deferreds.push(deferred);
-      Block._retrieveFieldFromIdentifier(identifier, function (field) {
-        fields.push(field);
+      Block._retrieveFieldFromPath(path, function (field) {
+        fields[path.identifier] = field;
         deferred.resolve();
       });
     });
 
     $.when.apply($, deferreds).done(function () {
       cb(fields);
-    });
-  },
-
-  getFlattenedFieldsForIdentifiers: function (identifiers, cb) {
-    Block.getFieldsForIdentifiers(identifiers, function (fields) {
-      cb(flatMap(fields, Block._flattenField));
     });
   }
 };
@@ -28740,17 +28756,25 @@ var Conversation = function(upstream, downstream, downstreamKey, cb) {
   this.upstream = upstream;
   this.downstream = downstream;
   var self = this;
-  $.post(Slide.endpoint('/conversations'),
-    JSON.stringify({key: key, upstream: upstream, downstream: downstream}),
+  $.post(Slide.endpoint("/conversations"),
+    JSON.stringify({key: key, upstream: { type: 'actor', id: upstream }, downstream: { type: 'user', number: downstream }}),
     function(conversation) {
       self.id = conversation.id;
       cb(self);
     });
 };
 
-Conversation.prototype.request = function(blocks) {
-  $.post(Slide.endpoint('/conversations/' + this.id + '/request_content'),
+Conversation.prototype.request = function(blocks, cb) {
+  $.post(Slide.endpoint("/conversations/" + this.id + "/request_content"),
     JSON.stringify({blocks: blocks}),
+    function(conversation) {
+      cb && cb();
+    });
+};
+
+Conversation.prototype.deposit = function(fields) {
+  $.post(Slide.endpoint("/conversations/" + this.id + "/deposit_content"),
+    JSON.stringify({fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey)}),
     function(conversation) {
       // Handle response?
     });
@@ -28876,20 +28900,33 @@ exports["default"] = function () {
 }
 },{}],6:[function(require,module,exports){
 "use strict";
-var User = {
-  prompt: function(cb) {
-    var form = $('<form><input type="text"><input type="submit" value="Send"></form>');
-    $('#modal .modal-body').append(form);
-    form.submit(function(evt) {
-      evt.preventDefault();
-      var number = $(this).find('[type=text]').val();
-      $.get(Slide.endpoint('/users/' + number + '/public_key'), function(resp) {
-        var key = resp.public_key;
-        cb(number, key);
-      });
+var User = function () {
+};
+
+User.prompt = function(cb) {
+  var user = new User();
+  var form = $("<form><input type='text'><input type='submit' value='Send'></form>");
+  $('#modal .modal-body').append(form);
+  form.submit(function(evt) {
+    evt.preventDefault();
+    var number = $(this).find('[type=text]').val();
+    $.get(Slide.endpoint('/users/' + number + '/public_key'), function(resp) {
+      var key = resp.public_key;
+      user.number = number;
+      user.key = key;
+      cb.call(user, number, key);
     });
-    $('#modal').modal('toggle');
-  }
+  });
+  $("#modal").modal('toggle');
+  return user;
+};
+
+User.prototype.requestPrivateKey = function(cb) {
+  var actor = new Slide.Actor();
+  var self = this;
+  actor.openRequest(['private-key'], this.number, this.key, function(fields) {
+    cb.call(self, fields['private-key']);
+  });
 };
 
 exports["default"] = User;
