@@ -28530,6 +28530,7 @@ var Actor = require("./slide/actor")["default"];
 var Conversation = require("./slide/conversation")["default"];
 var User = require("./slide/user")["default"];
 var Block = require("./slide/block")["default"];
+var Vendor = require("./slide/vendor")["default"];
 
 $('body').append('<div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
@@ -28550,6 +28551,7 @@ var Slide = {
   Actor: Actor,
   Conversation: Conversation,
   User: User,
+  Vendor: Vendor,
   Block: Block,
 
   extractBlocks: function (form) {
@@ -28569,7 +28571,7 @@ var Slide = {
 };
 
 window.Slide = Slide;
-},{"./slide/actor":2,"./slide/block":3,"./slide/conversation":4,"./slide/crypto":5,"./slide/user":6}],2:[function(require,module,exports){
+},{"./slide/actor":2,"./slide/block":3,"./slide/conversation":4,"./slide/crypto":5,"./slide/user":6,"./slide/vendor":7}],2:[function(require,module,exports){
 "use strict";
 function Actor(name) {
   var self = this;
@@ -28949,7 +28951,7 @@ var User = function(number, pub, priv, key) {
 };
 
 User.prompt = function(cb) {
-  var user = new User();
+  var user = new this();
   var form = $("<form><input type='text'><input type='submit' value='Send'></form>");
   $('#modal .modal-body').append(form);
   form.submit(function(evt) {
@@ -28967,7 +28969,7 @@ User.prompt = function(cb) {
 };
 
 User.fromObject = function(obj) {
-  return new User(obj.number, obj.publicKey, obj.privateKey, obj.symmetricKey);
+  return new this(obj.number, obj.publicKey, obj.privateKey, obj.symmetricKey);
 };
 
 User.prototype.persist = function() {
@@ -28982,7 +28984,7 @@ User.prototype.persist = function() {
 
 User.load = function(fail, success) {
   if( window.localStorage.user ) {
-    success(User.fromObject(JSON.parse(window.localStorage.user)));
+    success(this.fromObject(JSON.parse(window.localStorage.user)));
   } else {
     fail(success);
   }
@@ -29022,7 +29024,6 @@ User.prototype.listen = function(cb) {
   };
 };
 
-
 User.prototype.requestPrivateKey = function(cb) {
   var actor = new Slide.Actor();
   var self = this;
@@ -29032,4 +29033,57 @@ User.prototype.requestPrivateKey = function(cb) {
 };
 
 exports["default"] = User;
-},{}]},{},[1])
+},{}],7:[function(require,module,exports){
+"use strict";
+var User = require("./user")["default"];
+
+var Vendor = function(name, pub, priv, key) {
+  User.call(this, "", pub, priv, key);
+  this.name = name;
+};
+Vendor.prototype = User.prototype;
+Vendor.prototype.persist = function() {
+  var obj = {
+    number: this.number,
+    publicKey: this.publicKey,
+    privateKey: this.privateKey,
+    symmetricKey: this.symmetricKey
+  };
+  window.localStorage.user = JSON.stringify(obj);
+};
+Vendor.load = function(fail, success) {
+  if( window.localStorage.user ) {
+    success(this.fromObject(JSON.parse(window.localStorage.vendor)));
+  } else {
+    fail(success);
+  }
+};
+Vendor.register = function(number, cb) {
+  var keys;
+  var vendor = new this();
+  Slide.crypto.generateKeys(function(k) {
+    keys = Slide.crypto.packKeys(k);
+  });
+  var symmetricKey = Slide.crypto.AES.generateKey();
+  var key = Slide.crypto.encryptStringWithPackedKey(symmetricKey, keys.publicKey);
+  vendor.symmetricKey = symmetricKey;
+  vendor.publicKey = keys.publicKey;
+  vendor.privateKey = keys.privateKey;
+  vendor.name = name;
+  $.post(Slide.endpoint("/vendors"),
+    JSON.stringify({ key: key, public_key: keys.publicKey, name: vendor.name }),
+    function(v) {
+      vendor.id = v.id;
+      cb && cb(vendor);
+    });
+};
+Vendor.prototype.listen = function(cb) {
+  var socket = new WebSocket(Slide.endpoint('ws://', '/vendors/' + this.number + '/listen'));
+  var self = this;
+  socket.onmessage = function (event) {
+    console.log("refresh");
+  };
+};
+
+exports["default"] = Vendor;
+},{"./user":6}]},{},[1])
