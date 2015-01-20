@@ -1,3 +1,5 @@
+import api from './api';
+
 var Block = {
   _inherits: function (field) {
     if ('_inherits' in field) {
@@ -119,8 +121,11 @@ var Block = {
     if (Slide.CACHED_BLOCKS[path.organization]) {
       cb(Slide.CACHED_BLOCKS[path.organization]);
     } else {
-      $.get(Slide.endpoint('/blocks?organization=' + path.organization), function (block) {
-        cb(block);
+      api.get('/blocks', {
+        data: { organization: path.organization },
+        success: function (block) {
+          cb(block);
+        }
       });
     }
   },

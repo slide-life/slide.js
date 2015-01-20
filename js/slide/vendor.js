@@ -1,3 +1,4 @@
+import api from './api';
 import User from './user';
 
 var Vendor = function(name, pub, priv, key, chk, id) {
@@ -8,6 +9,7 @@ var Vendor = function(name, pub, priv, key, chk, id) {
   this.name = name;
   this.id = id;
 };
+
 Vendor.prototype = User.prototype;
 Vendor.prototype.persist = function() {
   var obj = {
@@ -20,9 +22,11 @@ Vendor.prototype.persist = function() {
   };
   window.localStorage.vendor = JSON.stringify(obj);
 };
+
 Vendor.fromObject = function(obj) {
   return new Vendor(obj.name, obj.publicKey, obj.privateKey, obj.symmetricKey, obj.checksum, obj.id);
 };
+
 Vendor.load = function(fail, success) {
   if( window.localStorage.vendor ) {
     console.log('loaded');
@@ -31,17 +35,16 @@ Vendor.load = function(fail, success) {
     fail(success);
   }
 };
+
 Vendor.invite = function(name, cb) {
-  $.post(Slide.endpoint('/admin/vendors'),
-    JSON.stringify({name: name}),
-    function(vendor) {
-      console.log('vendor', vendor);
+  api.post('/admin/vendors', {
+    data: { name: name },
+    success: function (vendor) {
       cb(vendor.invite_code, vendor.id);
-    });
+    }
+  });
 };
-$.put = function(url, payload, cb) {
-  $.ajax({ url: url, type: 'PUT', data: payload, success: cb });
-};
+
 Vendor.register = function(invite, id, name, cb) {
   var keys;
   Slide.crypto.generateKeys(function(k) {
@@ -64,24 +67,23 @@ Vendor.register = function(invite, id, name, cb) {
       cb && cb(vendor);
     });
 };
+
 Vendor.prototype.listen = function(cb) {
-  var socket = new WebSocket(Slide.endpoint('ws://', '/vendors/' + this.number + '/listen'));
+  var socket = api.socket('ws://', '/vendors/' + this.number + '/listen');
   var self = this;
   socket.onmessage = function (event) {
     console.log('refresh');
   };
 };
+
 Vendor.prototype.createForm = function(name, formFields) {
-  var payload = {
-    name: name,
-    form_fields: formFields,
-    checksum: this.checksum
-  };
-  $.post(Slide.endpoint('/vendors/' + this.id + '/vendor_forms'),
-    JSON.stringify(payload),
-    function(form) {
-      console.log(form);
-    });
+  ajax.post('/vendors/' + this.id + '/vendor_forms', {
+    data: {
+      name: name,
+      form_fields: formFields,
+      checksum: this.checksum
+    }
+  });
 };
 
 export default Vendor;

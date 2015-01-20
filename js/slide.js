@@ -1,4 +1,5 @@
-import Crypto from './slide/crypto';
+import crypto from './slide/crypto';
+
 import Actor from './slide/actor';
 import Conversation from './slide/conversation';
 import User from './slide/user';
@@ -7,25 +8,17 @@ import Vendor from './slide/vendor';
 import Form from './slide/form';
 
 var Slide = {
-  HOST: 'api-sandbox.slide.life',
   DEFAULT_ORGANIZATION: 'slide.life',
   CACHED_BLOCKS: {},
 
-  crypto: new Crypto(),
+  crypto: new crypto(),
+
   Actor: Actor,
   Conversation: Conversation,
   User: User,
   Block: Block,
   Vendor: Vendor,
   Form: Form,
-
-  endpoint: function(/* protocol, */ path) {
-    if( arguments.length > 1 ) {
-      return arguments[0] + Slide.HOST + arguments[1];
-    } else {
-      return 'http://' + Slide.HOST + path;
-    }
-  },
 
   extractBlocks: function (form) {
     return form.find('*').map(function () {
@@ -65,4 +58,3 @@ var Slide = {
 };
 
 window.Slide = Slide;
-

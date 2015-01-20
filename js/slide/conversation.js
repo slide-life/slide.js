@@ -1,3 +1,5 @@
+import api from './api';
+
 var Conversation = function(upstream, downstream, cb) {
   var key = Slide.crypto.AES.generateKey();
   var obj = {
@@ -26,45 +28,41 @@ Conversation.FromObject = function(obj, cb) {
   } : {
     type: obj.upstream_type.toLowerCase(), number: obj.upstream_number
   };
+
   var payload = {
     key: obj.key,
     upstream: upstream_pack,
     downstream: downstream_pack
   };
-  $.post(Slide.endpoint("/conversations"),
-    JSON.stringify(payload),
-    function(conversation) {
+
+  api.post('/conversations', {
+    data: payload,
+    success: function (conversation) {
       self.id = conversation.id;
       cb(self);
-    });
+    }
+  });
 };
+
 Conversation.FromObject.prototype = Conversation.prototype;
 
 Conversation.prototype.request = function(blocks, cb) {
-  $.post(Slide.endpoint("/conversations/" + this.id + "/request_content"),
-    JSON.stringify({blocks: blocks}),
-    function(conversation) {
-      cb && cb();
-    });
+  api.post('/conversations/' + this.id + '/request_content', {
+    data: { blocks: blocks },
+    success: cb
+  });
 };
 
-Conversation.prototype.deposit = function(fields) {
-  $.post(Slide.endpoint("/conversations/" + this.id + "/deposit_content"),
-    JSON.stringify({fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey)}),
-    function(conversation) {
-      // Handle response?
-    });
+Conversation.prototype.deposit = function (fields) {
+  api.post('/conversations/' + this.id + '/deposit_content', {
+    data: { fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey) }
+  });
 };
 
-$.put = function(url, payload, cb) {
-  $.ajax({ url: url, type: 'PUT', data: payload, success: cb });
-};
 Conversation.prototype.respond = function(fields) {
-  $.put(Slide.endpoint("/conversations/" + this.id + ""),
-    JSON.stringify({fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey)}),
-    function(conversation) {
-      // Handle response?
-    });
+  api.put('/conversations/' + this.id, {
+    data: { fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey) }
+  });
 };
 
 export default Conversation;

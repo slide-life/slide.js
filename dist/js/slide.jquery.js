@@ -30646,7 +30646,8 @@ return require('js/forge');
 }));
 ;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
-var Crypto = require("./slide/crypto")["default"];
+var crypto = require("./slide/crypto")["default"];
+
 var Actor = require("./slide/actor")["default"];
 var Conversation = require("./slide/conversation")["default"];
 var User = require("./slide/user")["default"];
@@ -30655,25 +30656,17 @@ var Vendor = require("./slide/vendor")["default"];
 var Form = require("./slide/form")["default"];
 
 var Slide = {
-  HOST: 'api-sandbox.slide.life',
   DEFAULT_ORGANIZATION: 'slide.life',
   CACHED_BLOCKS: {},
 
-  crypto: new Crypto(),
+  crypto: new crypto(),
+
   Actor: Actor,
   Conversation: Conversation,
   User: User,
   Block: Block,
   Vendor: Vendor,
   Form: Form,
-
-  endpoint: function(/* protocol, */ path) {
-    if( arguments.length > 1 ) {
-      return arguments[0] + Slide.HOST + arguments[1];
-    } else {
-      return 'http://' + Slide.HOST + path;
-    }
-  },
 
   extractBlocks: function (form) {
     return form.find('*').map(function () {
@@ -30713,8 +30706,10 @@ var Slide = {
 };
 
 window.Slide = Slide;
-},{"./slide/actor":2,"./slide/block":3,"./slide/conversation":4,"./slide/crypto":5,"./slide/form":6,"./slide/user":7,"./slide/vendor":8}],2:[function(require,module,exports){
+},{"./slide/actor":2,"./slide/block":4,"./slide/conversation":5,"./slide/crypto":6,"./slide/form":7,"./slide/user":8,"./slide/vendor":9}],2:[function(require,module,exports){
 "use strict";
+var api = require("./api")["default"];
+
 function Actor(name) {
   var self = this;
   if (name) { this.name = name; }
@@ -30741,8 +30736,10 @@ Actor.prototype.openRequest = function(blocks, downstream, onMessage) {
 };
 
 Actor.prototype.initialize = function(cb) {
-  $.post(Slide.endpoint('/actors'),
-    JSON.stringify({key: this.publicKey}), cb.bind(this));
+  api.post('/actors', {
+    data: { key: this.publicKey },
+    success: cb.bind(this)
+  });
 };
 
 Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
@@ -30760,7 +30757,7 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
 };
 
 Actor.prototype.listen = function(cb) {
-  var socket = new WebSocket(Slide.endpoint('ws://', '/actors/' + this.id + '/listen'));
+  var socket = api.socket('/actors/' + this.id + '/listen');
   var self = this;
   socket.onmessage = function (event) {
     var message = JSON.parse(event.data);
@@ -30775,8 +30772,54 @@ Actor.prototype.listen = function(cb) {
 };
 
 exports["default"] = Actor;
-},{}],3:[function(require,module,exports){
+},{"./api":3}],3:[function(require,module,exports){
 "use strict";
+var HOST = 'api-sandbox.slide.life';
+
+exports["default"] = {
+  endpoint: function(/* protocol, */ path) {
+    if (arguments.length > 1) {
+      return arguments[0] + HOST + arguments[1];
+    } else {
+      return 'http://' + HOST + path;
+    }
+  },
+
+  enableJSON: function (options) {
+    if (options.data) { options.data = JSON.stringify(options.data); };
+    options.contentType = 'application/json; charset=utf-8';
+    options.dataType = 'json';
+  },
+
+  get: function (path, options) {
+    options.url = this.endpoint(path);
+    options.type = 'GET';
+    options.dataType = 'json';
+    $.ajax(options);
+  },
+
+  post: function (path, options) {
+    options.url = this.endpoint(path);
+    options.type = 'POST';
+    this.enableJSON(options);
+    $.ajax(options);
+  },
+
+  put: function (path, options) {
+    options.url = this.endpoint(path);
+    options.type = 'PUT';
+    this.enableJSON(options);
+    $.ajax(options);
+  },
+
+  socket: function (path) {
+    return new WebSocket(this.endpoint('ws://', path));
+  }
+};
+},{}],4:[function(require,module,exports){
+"use strict";
+var api = require("./api")["default"];
+
 var Block = {
   _inherits: function (field) {
     if ('_inherits' in field) {
@@ -30898,8 +30941,11 @@ var Block = {
     if (Slide.CACHED_BLOCKS[path.organization]) {
       cb(Slide.CACHED_BLOCKS[path.organization]);
     } else {
-      $.get(Slide.endpoint('/blocks?organization=' + path.organization), function (block) {
-        cb(block);
+      api.get('/blocks', {
+        data: { organization: path.organization },
+        success: function (block) {
+          cb(block);
+        }
       });
     }
   },
@@ -30958,8 +31004,10 @@ var Block = {
 };
 
 exports["default"] = Block;
-},{}],4:[function(require,module,exports){
+},{"./api":3}],5:[function(require,module,exports){
 "use strict";
+var api = require("./api")["default"];
+
 var Conversation = function(upstream, downstream, cb) {
   var key = Slide.crypto.AES.generateKey();
   var obj = {
@@ -30988,49 +31036,45 @@ Conversation.FromObject = function(obj, cb) {
   } : {
     type: obj.upstream_type.toLowerCase(), number: obj.upstream_number
   };
+
   var payload = {
     key: obj.key,
     upstream: upstream_pack,
     downstream: downstream_pack
   };
-  $.post(Slide.endpoint("/conversations"),
-    JSON.stringify(payload),
-    function(conversation) {
+
+  api.post('/conversations', {
+    data: payload,
+    success: function (conversation) {
       self.id = conversation.id;
       cb(self);
-    });
+    }
+  });
 };
+
 Conversation.FromObject.prototype = Conversation.prototype;
 
 Conversation.prototype.request = function(blocks, cb) {
-  $.post(Slide.endpoint("/conversations/" + this.id + "/request_content"),
-    JSON.stringify({blocks: blocks}),
-    function(conversation) {
-      cb && cb();
-    });
+  api.post('/conversations/' + this.id + '/request_content', {
+    data: { blocks: blocks },
+    success: cb
+  });
 };
 
-Conversation.prototype.deposit = function(fields) {
-  $.post(Slide.endpoint("/conversations/" + this.id + "/deposit_content"),
-    JSON.stringify({fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey)}),
-    function(conversation) {
-      // Handle response?
-    });
+Conversation.prototype.deposit = function (fields) {
+  api.post('/conversations/' + this.id + '/deposit_content', {
+    data: { fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey) }
+  });
 };
 
-$.put = function(url, payload, cb) {
-  $.ajax({ url: url, type: 'PUT', data: payload, success: cb });
-};
 Conversation.prototype.respond = function(fields) {
-  $.put(Slide.endpoint("/conversations/" + this.id + ""),
-    JSON.stringify({fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey)}),
-    function(conversation) {
-      // Handle response?
-    });
+  api.put('/conversations/' + this.id, {
+    data: { fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey) }
+  });
 };
 
 exports["default"] = Conversation;
-},{}],5:[function(require,module,exports){
+},{"./api":3}],6:[function(require,module,exports){
 "use strict";
 exports["default"] = function () {
   var rsa = forge.pki.rsa;
@@ -31147,7 +31191,7 @@ exports["default"] = function () {
     return pub.decrypt(atob(text));
   };
 }
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 "use strict";
 var Block = require("./block")["default"];
 
@@ -31501,8 +31545,10 @@ Form.prototype.getPatchedUserData = function () {
 };
 
 exports["default"] = Form;
-},{"./block":3}],7:[function(require,module,exports){
+},{"./block":4}],8:[function(require,module,exports){
 "use strict";
+var api = require("./api")["default"];
+
 var User = function(number, pub, priv, key) {
   this.number = number;
   this.publicKey = pub;
@@ -31517,11 +31563,13 @@ User.prompt = function(cb) {
   form.submit(function(evt) {
     evt.preventDefault();
     var number = $(this).find('[type=text]').val();
-    $.get(Slide.endpoint('/users/' + number + '/public_key'), function(resp) {
-      var key = resp.public_key;
-      user.number = number;
-      user.symmetricKey = key;
-      cb.call(user, number, key);
+    api.get('/users/' + number + '/public_key', {
+      success: function(resp) {
+        var key = resp.public_key;
+        user.number = number;
+        user.symmetricKey = key;
+        cb.call(user, number, key);
+      }
     });
   });
   $("#modal").modal('toggle');
@@ -31562,16 +31610,17 @@ User.register = function(number, cb) {
   user.publicKey = keys.publicKey;
   user.privateKey = keys.privateKey;
   user.number = number;
-  $.post(Slide.endpoint("/users"),
-    JSON.stringify({ key: key, public_key: keys.publicKey, user: number }),
-    function(u) {
+  api.post('/users', {
+    data: { key: key, public_key: keys.publicKey, user: number },
+    success: function (u) {
       user.id = u.id;
       cb && cb(user);
-    });
+    }
+  });
 };
 
 User.prototype.listen = function(cb) {
-  var socket = new WebSocket(Slide.endpoint('ws://', '/users/' + this.number + '/listen'));
+  var socket = api.socket('/users/' + this.number + '/listen');
   var self = this;
   socket.onmessage = function (event) {
     var message = JSON.parse(event.data);
@@ -31593,8 +31642,9 @@ User.prototype.requestPrivateKey = function(cb) {
 };
 
 exports["default"] = User;
-},{}],8:[function(require,module,exports){
+},{"./api":3}],9:[function(require,module,exports){
 "use strict";
+var api = require("./api")["default"];
 var User = require("./user")["default"];
 
 var Vendor = function(name, pub, priv, key, chk, id) {
@@ -31605,6 +31655,7 @@ var Vendor = function(name, pub, priv, key, chk, id) {
   this.name = name;
   this.id = id;
 };
+
 Vendor.prototype = User.prototype;
 Vendor.prototype.persist = function() {
   var obj = {
@@ -31617,9 +31668,11 @@ Vendor.prototype.persist = function() {
   };
   window.localStorage.vendor = JSON.stringify(obj);
 };
+
 Vendor.fromObject = function(obj) {
   return new Vendor(obj.name, obj.publicKey, obj.privateKey, obj.symmetricKey, obj.checksum, obj.id);
 };
+
 Vendor.load = function(fail, success) {
   if( window.localStorage.vendor ) {
     console.log('loaded');
@@ -31628,17 +31681,16 @@ Vendor.load = function(fail, success) {
     fail(success);
   }
 };
+
 Vendor.invite = function(name, cb) {
-  $.post(Slide.endpoint('/admin/vendors'),
-    JSON.stringify({name: name}),
-    function(vendor) {
-      console.log('vendor', vendor);
+  api.post('/admin/vendors', {
+    data: { name: name },
+    success: function (vendor) {
       cb(vendor.invite_code, vendor.id);
-    });
+    }
+  });
 };
-$.put = function(url, payload, cb) {
-  $.ajax({ url: url, type: 'PUT', data: payload, success: cb });
-};
+
 Vendor.register = function(invite, id, name, cb) {
   var keys;
   Slide.crypto.generateKeys(function(k) {
@@ -31661,25 +31713,24 @@ Vendor.register = function(invite, id, name, cb) {
       cb && cb(vendor);
     });
 };
+
 Vendor.prototype.listen = function(cb) {
-  var socket = new WebSocket(Slide.endpoint('ws://', '/vendors/' + this.number + '/listen'));
+  var socket = api.socket('ws://', '/vendors/' + this.number + '/listen');
   var self = this;
   socket.onmessage = function (event) {
     console.log('refresh');
   };
 };
+
 Vendor.prototype.createForm = function(name, formFields) {
-  var payload = {
-    name: name,
-    form_fields: formFields,
-    checksum: this.checksum
-  };
-  $.post(Slide.endpoint('/vendors/' + this.id + '/vendor_forms'),
-    JSON.stringify(payload),
-    function(form) {
-      console.log(form);
-    });
+  ajax.post('/vendors/' + this.id + '/vendor_forms', {
+    data: {
+      name: name,
+      form_fields: formFields,
+      checksum: this.checksum
+    }
+  });
 };
 
 exports["default"] = Vendor;
-},{"./user":7}]},{},[1])
+},{"./api":3,"./user":8}]},{},[1])

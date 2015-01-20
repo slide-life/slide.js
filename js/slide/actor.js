@@ -1,3 +1,5 @@
+import api from './api';
+
 function Actor(name) {
   var self = this;
   if (name) { this.name = name; }
@@ -24,8 +26,10 @@ Actor.prototype.openRequest = function(blocks, downstream, onMessage) {
 };
 
 Actor.prototype.initialize = function(cb) {
-  $.post(Slide.endpoint('/actors'),
-    JSON.stringify({key: this.publicKey}), cb.bind(this));
+  api.post('/actors', {
+    data: { key: this.publicKey },
+    success: cb.bind(this)
+  });
 };
 
 Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
@@ -43,7 +47,7 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
 };
 
 Actor.prototype.listen = function(cb) {
-  var socket = new WebSocket(Slide.endpoint('ws://', '/actors/' + this.id + '/listen'));
+  var socket = api.socket('/actors/' + this.id + '/listen');
   var self = this;
   socket.onmessage = function (event) {
     var message = JSON.parse(event.data);

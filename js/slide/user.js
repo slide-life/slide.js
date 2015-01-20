@@ -1,3 +1,5 @@
+import api from './api';
+
 var User = function(number, pub, priv, key) {
   this.number = number;
   this.publicKey = pub;
@@ -12,11 +14,13 @@ User.prompt = function(cb) {
   form.submit(function(evt) {
     evt.preventDefault();
     var number = $(this).find('[type=text]').val();
-    $.get(Slide.endpoint('/users/' + number + '/public_key'), function(resp) {
-      var key = resp.public_key;
-      user.number = number;
-      user.symmetricKey = key;
-      cb.call(user, number, key);
+    api.get('/users/' + number + '/public_key', {
+      success: function(resp) {
+        var key = resp.public_key;
+        user.number = number;
+        user.symmetricKey = key;
+        cb.call(user, number, key);
+      }
     });
   });
   $("#modal").modal('toggle');
@@ -57,16 +61,17 @@ User.register = function(number, cb) {
   user.publicKey = keys.publicKey;
   user.privateKey = keys.privateKey;
   user.number = number;
-  $.post(Slide.endpoint("/users"),
-    JSON.stringify({ key: key, public_key: keys.publicKey, user: number }),
-    function(u) {
+  api.post('/users', {
+    data: { key: key, public_key: keys.publicKey, user: number },
+    success: function (u) {
       user.id = u.id;
       cb && cb(user);
-    });
+    }
+  });
 };
 
 User.prototype.listen = function(cb) {
-  var socket = new WebSocket(Slide.endpoint('ws://', '/users/' + this.number + '/listen'));
+  var socket = api.socket('/users/' + this.number + '/listen');
   var self = this;
   socket.onmessage = function (event) {
     var message = JSON.parse(event.data);
@@ -88,4 +93,3 @@ User.prototype.requestPrivateKey = function(cb) {
 };
 
 export default User;
-
