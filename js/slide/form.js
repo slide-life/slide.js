@@ -12,10 +12,11 @@ Form.createFromIdentifiers = function ($container, identifiers, cb) {
   });
 };
 
-Form.prototype.build = function (userData, onSubmit) {
+Form.prototype.build = function (userData, options) {
   var self = this;
 
   this.userData = userData;
+  this.options = options;
   this.$form = $('<ul></ul>', { 'class': 'slide-form' }).appendTo(this.$container);
 
   $.each(this.fields, function (identifier, field) {
@@ -26,14 +27,14 @@ Form.prototype.build = function (userData, onSubmit) {
     }
   });
 
-  this.$form.append(this._createSubmitButton(onSubmit));
+  this.$form.append(this._createSubmitButton());
   this.initializeSliders();
 };
 
-Form.prototype._createSubmitButton = function (onSubmit) {
+Form.prototype._createSubmitButton = function () {
   return $('<li></li>', {
     class: 'send-button'
-  }).text('Send').on('click', onSubmit);
+  }).text('Send').on('click', this.options.onSubmit);
 };
 
 Form.prototype.initializeSliders = function () {

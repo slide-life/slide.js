@@ -11,6 +11,7 @@ $field-height: 58px;
 $field-radius: 4px;
 $field-spacing: 12px;
 $field-label-width: 50%;
+$field-border: 1px solid $medium-grey;
 
 *:not(input, textarea) {
   -webkit-touch-callout: none;
@@ -29,7 +30,7 @@ $field-label-width: 50%;
   background-color: $light-grey;
   list-style-type: none;
   margin: 0;
-  padding: $field-spacing 0;
+  padding: $field-spacing 0 0 0;
   padding-top: 0;
   overflow: hidden;
 }
@@ -45,7 +46,7 @@ $field-label-width: 50%;
   background-color: white;
   height: $field-height;
   line-height: $field-height;
-  border: 1px solid $medium-grey;
+  border: $field-border;
   border-bottom: none;
 }
 
@@ -100,13 +101,13 @@ $field-label-width: 50%;
 .slide-form .compound-wrapper li:last-child .field {
   border-bottom-left-radius: $field-radius;
   border-bottom-right-radius: $field-radius;
-  border-bottom: 1px solid $medium-grey;
+  border-bottom: $field-border;
 }
 
 /* Cards */
 
 .slide-form .card-wrapper .card-header .field {
-  border-bottom: 1px solid $medium-grey;
+  border-bottom: $field-border;
   box-shadow: 0px 2px 4px 0px rgba(160, 160, 160, 0.40);
 }
 
@@ -129,7 +130,32 @@ $field-label-width: 50%;
 .slide-form .card-wrapper .card-subfields .field:last-child {
   border-bottom-left-radius: $field-radius;
   border-bottom-right-radius: $field-radius;
-  border-bottom: 1px solid $medium-grey;
+  border-bottom: $field-border;
+}
+
+/* Modal */
+
+.slide-modal {
+  display: none;
+  width: 480px;
+  overflow: hidden;
+  margin: 60px auto;
+  border: $field-border;
+  box-shadow: 0px 0px 20px 2px rgba(80, 80, 80, 0.3);
+  border-radius: 8px;
+}
+
+.slide-modal-header {
+  background-color: $light-grey;
+  padding: $field-spacing;
+  border-bottom: $field-border;
+}
+
+.slide-modal-header h2 {
+  font-family: 'Open Sans';
+  font-weight: 600;
+  font-size: 22px;
+  margin: 0;
 }
 
 /* Slick styling */
@@ -137,3 +163,4 @@ $field-label-width: 50%;
 .slick-slide {
   margin: 0 $field-spacing;
 }
+

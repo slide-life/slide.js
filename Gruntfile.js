@@ -9,7 +9,7 @@ module.exports = function (grunt) {
       main: {
         type: 'cjs',
         files: [{
-          cwd: 'lib/',
+          cwd: 'js/',
           expand: true,
           dest: 'build/',
           src: '**/*.js'
@@ -25,8 +25,8 @@ module.exports = function (grunt) {
     },
 
     exec: {
-      bundle: 'cd bower_components/forge; npm run bundle; cd ..',
-      copy: 'cp -R img dist; cp -R fonts dist'
+      bundle: 'cd bower_components/forge; npm run bundle',
+      copyFonts: 'mkdir dist; cp -R img dist; cp -R fonts dist'
     },
 
     concat: {
@@ -43,7 +43,7 @@ module.exports = function (grunt) {
     },
 
     jshint: {
-      files: ['lib/**/*.js'],
+      files: ['js/**/*.js'],
       options: {
         jshintrc: '.jshintrc'
       }
@@ -59,7 +59,7 @@ module.exports = function (grunt) {
 
     watch: {
       jshint: {
-        files: ['lib/**/*.js'],
+        files: ['js/**/*.js'],
         tasks: ['jshint']
       },
 

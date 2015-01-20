@@ -30642,240 +30642,24 @@ return require('js/forge');
 }));
 ;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
-var Form = function ($container, fields) {
-  this.fields = fields;
-  this.$container = $container;
-};
-
-Form.CARDS = ['slide.life:bank.card', 'slide.life:name'];
-
-Form.createFromIdentifiers = function ($container, identifiers, cb) {
-  Slide.Block.getFieldsForIdentifiers(identifiers, function (fields) {
-    var form = new Form($container, fields);
-    cb(form);
-  });
-};
-
-Form.prototype.build = function (userData, onSubmit) {
-  var self = this;
-
-  this.userData = userData;
-  this.$form = $('<ul></ul>', { 'class': 'slide-form' }).appendTo(this.$container);
-
-  $.each(this.fields, function (identifier, field) {
-    if (self._isCard(identifier)) {
-      self.$form.append($('<li></li>', { class: 'card-wrapper' }).append(self.createCard(identifier, field)));
-    } else {
-      self.$form.append($('<li></li>', { class: 'compound-wrapper' }).append(self.createCompound(identifier, field)));
-    }
-  });
-
-  this.$form.append(this._createSubmitButton(onSubmit));
-  this.initializeSliders();
-};
-
-Form.prototype._createSubmitButton = function (onSubmit) {
-  return $('<li></li>', {
-    class: 'send-button'
-  }).text('Send').on('click', onSubmit);
-};
-
-Form.prototype.initializeSliders = function () {
-  $('.slider').slick({
-    slide: 'li',
-    arrows: false,
-    focusOnSelect: true
-  });
-};
-
-Form.prototype._isCard = function (identifier) {
-  return Form.CARDS.indexOf(identifier) !== -1;
-};
-
-Form.prototype._flattenField = function (identifier, field) {
-  var children = Slide.Block.getChildren(field),
-      self = this;
-
-  if (Object.keys(children).length > 0) {
-    return Object.keys(children).reduce(function (merged, id) {
-      return $.extend(merged, self._flattenField(identifier + '.' + id, field[id]));
-    }, {});
-  } else {
-    var leaf = {};
-    leaf[identifier] = field;
-    return leaf;
-  }
-};
-
-Form.prototype._getDataForIdentifier = function (identifier) {
-  var path = Slide.Block.getPathForIdentifier(identifier);
-  return this.userData[path.identifier] || [];
-};
-
-Form.prototype._createSlider = function (fields) {
-  var slider = $('<ul></ul>', { class: 'slider'});
-  return slider.append.apply(slider, fields);
-},
-
-Form.prototype._createField = function (identifier, field, data, options /* = {} */) {
-  options = options || {};
-
-  var listItem = $('<li></li>', { class: 'field' }),
-      $labelWrapper = $('<div></div>', { 'class': 'field-label-wrapper' }),
-      $inputWrapper = $('<div></div>', { 'class': 'field-input-wrapper' });
-
-  var input = $('<input>', $.extend({
-    type: 'text',
-    class: 'field-input',
-    value: data,
-    autocorrect: 'off',
-    autocapitalize: 'off',
-    'data-slide-identifier': identifier
-  }, options));
-
-  $inputWrapper.append(input);
-  $labelWrapper.append($('<label></label>').text(field._description));
-  return listItem.append($labelWrapper, $inputWrapper);
-};
-
-Form.prototype._parseRepresentation = function (identifier, field, card) {
-  var self = this,
-      data;
-
-  if (field._representation) {
-    data = [field._representation.replace(/\$\{([^}]+)\}/g, function ($0, $1) {
-      return card[identifier + '.' + $1];
-    })];
-  }
-
-  return data;
-};
-
-Form.prototype.createCard = function (identifier, field) {
-  var self = this;
-  var cards = this._getDataForIdentifier(identifier).map(function (card) {
-    var $cardHeader = self.createCardHeader(identifier, field, card);
-    var $cardSubfields = self.createCardSubfields(identifier, field, card);
-    var $card = $('<li></li>', { class: 'card' }).append($cardHeader, $cardSubfields);
-
-    $card.on('click', '.card-header', function (e) {
-      $card.parent().find('.card-subfields').slideToggle();
-    });
-
-    return $card;
-  });
-
-  return this._createSlider(cards);
-};
-
-Form.prototype.createCardHeader = function (identifier, field, card) {
-  var representation = this._parseRepresentation(identifier, field, card);
-  var $header = $('<ul></ul>', { class: 'field-group card-header' });
-  return $header.append(this._createField(identifier, field, representation, { readonly: true }));
-};
-
-Form.prototype.createCardSubfields = function (identifier, field, card) {
-  var fields = this._flattenField(identifier, field);
-  var compound = [], self = this;
-
-  $.each(fields, function (i, f) {
-    var path = Slide.Block.getPathForIdentifier(i);
-    compound.push(self._createField(i, f, card[i]));
-  });
-
-  var $subfields = $('<ul></ul>', { class: 'field-group card-subfields' });
-  return $subfields.append.apply($subfields, compound);
-};
-
-Form.prototype.createCompound = function (identifier, field) {
-  var fields = this._flattenField(identifier, field);
-  var compound = [], self = this;
-
-  $.each(fields, function (i, f) {
-    var data = self._getDataForIdentifier(i);
-    var fs;
-
-    if (data.length > 0) {
-      fs = data.map(function (d) {
-        return self._createField(i, f, d);
-      });
-    } else {
-      fs = [self._createField(i, f, '')];
-    }
-
-    var slider = self._createSlider(fs);
-    compound.push($('<li></li>').append(slider));
-  });
-
-  var $fieldGroup = $('<ul></ul>', { class: 'field-group' });
-  return $fieldGroup.append.apply($fieldGroup, compound);
-};
-
-Form.prototype._getFieldsInElement = function ($element, multi /* = false */) {
-  multi = multi !== undefined;
-
-  var $fields = $element.find('.field-input'),
-      keystore = {};
-
-  $fields.each(function () {
-    var key = $(this).data('slide-identifier'),
-        value = $(this).val();
-
-    if (multi) {
-      keystore[key] = keystore[key] || [];
-      keystore[key].push(value);
-    } else {
-      keystore[key] = value;
-    }
-  });
-
-  return keystore;
-};
-
-Form.prototype._getFieldsForSelector = function (selector, multi /* = false */) {
-  return this._getFieldsInElement(this.$form.find(selector), multi);
-};
-
-Form.prototype.serialize = function () {
-  var cardFieldsSelector = '.card.slick-active .card-subfields';
-  var compoundFieldsSelector = '.compound-wrapper .slick-active';
-
-  var keystore = this._getFieldsForSelector([cardFieldsSelector, compoundFieldsSelector].join(', '));
-
-  return JSON.stringify(keystore);
-};
-
-Form.prototype.getUserData = function () {
-  var compoundData = this._getFieldsForSelector('.compound-wrapper .field:not(.slick-cloned)', true);
-  var cardData = {},
-      self = this;
-
-  this.$form.find('.card-wrapper').each(function (card) {
-    var key = $(this).find('.card .card-header .field-input').data('slide-identifier');
-    cardData[key] = [];
-    $(this).find('.card:not(.slick-cloned) .card-subfields').each(function () {
-      cardData[key].push(self._getFieldsInElement($(this)));
-    });
-  });
-
-  return $.extend(cardData, compoundData);
-};
-
-exports["default"] = Form;
-},{}],2:[function(require,module,exports){
-"use strict";
 var Crypto = require("./slide/crypto")["default"];
 var Actor = require("./slide/actor")["default"];
 var Conversation = require("./slide/conversation")["default"];
 var User = require("./slide/user")["default"];
 var Block = require("./slide/block")["default"];
-
-$('body').append('<div class="modal fade" style="display: none" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
+var Form = require("./slide/form")["default"];
 
 var Slide = {
   HOST: 'api-sandbox.slide.life',
   DEFAULT_ORGANIZATION: 'slide.life',
   CACHED_BLOCKS: {},
+
+  crypto: new Crypto(),
+  Actor: Actor,
+  Conversation: Conversation,
+  User: User,
+  Block: Block,
+  Form: Form,
 
   endpoint: function(/* protocol, */ path) {
     if( arguments.length > 1 ) {
@@ -30884,12 +30668,6 @@ var Slide = {
       return 'http://' + Slide.HOST + path;
     }
   },
-
-  crypto: new Crypto(),
-  Actor: Actor,
-  Conversation: Conversation,
-  User: User,
-  Block: Block,
 
   extractBlocks: function (form) {
     return form.find('*').map(function () {
@@ -30904,11 +30682,32 @@ var Slide = {
         $(this).val(fields[field]);
       }
     });
+  },
+
+  presentModalFormFromIdentifiers: function (identifiers, userData) {
+    if (!this._modal) {
+      this._modal = $('<div class="slide-modal"></div>');
+      var header = $('<div class="slide-modal-header"></div>').append('<h2>Fill with slide</h2>');
+      this._modal.append(header, '<div class="slide-modal-body"></div>');
+      this._modal.appendTo($('body'));
+    }
+
+    var modal = this._modal;
+    this.Form.createFromIdentifiers(modal.find('.slide-modal-body'), identifiers, function (form) {
+      form.build(userData, {
+        onSubmit: function () {
+          console.log(form.serialize());
+          console.log(form.getUserData());
+        }
+      });
+      modal.show();
+      $(window).trigger('resize');
+    });
   }
 };
 
 window.Slide = Slide;
-},{"./slide/actor":3,"./slide/block":4,"./slide/conversation":5,"./slide/crypto":6,"./slide/user":7}],3:[function(require,module,exports){
+},{"./slide/actor":2,"./slide/block":3,"./slide/conversation":4,"./slide/crypto":5,"./slide/form":6,"./slide/user":7}],2:[function(require,module,exports){
 "use strict";
 function Actor(name) {
   var self = this;
@@ -30966,7 +30765,7 @@ Actor.prototype.listen = function(cb) {
 };
 
 exports["default"] = Actor;
-},{}],4:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 "use strict";
 'use strict';
 
@@ -31151,7 +30950,7 @@ var Block = {
 };
 
 exports["default"] = Block;
-},{}],5:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 "use strict";
 var Conversation = function(upstream, downstream, downstreamKey, cb) {
   this.symmetricKey = Slide.crypto.AES.generateKey();
@@ -31185,7 +30984,7 @@ Conversation.prototype.deposit = function(fields) {
 };
 
 exports["default"] = Conversation;
-},{}],6:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 "use strict";
 exports["default"] = function () {
   var rsa = forge.pki.rsa;
@@ -31302,6 +31101,229 @@ exports["default"] = function () {
     return pub.decrypt(atob(text));
   };
 }
+},{}],6:[function(require,module,exports){
+"use strict";
+var Form = function ($container, fields) {
+  this.fields = fields;
+  this.$container = $container;
+};
+
+Form.CARDS = ['slide.life:bank.card', 'slide.life:name'];
+
+Form.createFromIdentifiers = function ($container, identifiers, cb) {
+  Slide.Block.getFieldsForIdentifiers(identifiers, function (fields) {
+    var form = new Form($container, fields);
+    cb(form);
+  });
+};
+
+Form.prototype.build = function (userData, options) {
+  var self = this;
+
+  this.userData = userData;
+  this.options = options;
+  this.$form = $('<ul></ul>', { 'class': 'slide-form' }).appendTo(this.$container);
+
+  $.each(this.fields, function (identifier, field) {
+    if (self._isCard(identifier)) {
+      self.$form.append($('<li></li>', { class: 'card-wrapper' }).append(self.createCard(identifier, field)));
+    } else {
+      self.$form.append($('<li></li>', { class: 'compound-wrapper' }).append(self.createCompound(identifier, field)));
+    }
+  });
+
+  this.$form.append(this._createSubmitButton());
+  this.initializeSliders();
+};
+
+Form.prototype._createSubmitButton = function () {
+  return $('<li></li>', {
+    class: 'send-button'
+  }).text('Send').on('click', this.options.onSubmit);
+};
+
+Form.prototype.initializeSliders = function () {
+  $('.slider').slick({
+    slide: 'li',
+    arrows: false,
+    focusOnSelect: true
+  });
+};
+
+Form.prototype._isCard = function (identifier) {
+  return Form.CARDS.indexOf(identifier) !== -1;
+};
+
+Form.prototype._flattenField = function (identifier, field) {
+  var children = Slide.Block.getChildren(field),
+      self = this;
+
+  if (Object.keys(children).length > 0) {
+    return Object.keys(children).reduce(function (merged, id) {
+      return $.extend(merged, self._flattenField(identifier + '.' + id, field[id]));
+    }, {});
+  } else {
+    var leaf = {};
+    leaf[identifier] = field;
+    return leaf;
+  }
+};
+
+Form.prototype._getDataForIdentifier = function (identifier) {
+  var path = Slide.Block.getPathForIdentifier(identifier);
+  return this.userData[path.identifier] || [];
+};
+
+Form.prototype._createSlider = function (fields) {
+  var slider = $('<ul></ul>', { class: 'slider'});
+  return slider.append.apply(slider, fields);
+},
+
+Form.prototype._createField = function (identifier, field, data, options /* = {} */) {
+  options = options || {};
+
+  var listItem = $('<li></li>', { class: 'field' }),
+      $labelWrapper = $('<div></div>', { 'class': 'field-label-wrapper' }),
+      $inputWrapper = $('<div></div>', { 'class': 'field-input-wrapper' });
+
+  var input = $('<input>', $.extend({
+    type: 'text',
+    class: 'field-input',
+    value: data,
+    autocorrect: 'off',
+    autocapitalize: 'off',
+    'data-slide-identifier': identifier
+  }, options));
+
+  $inputWrapper.append(input);
+  $labelWrapper.append($('<label></label>').text(field._description));
+  return listItem.append($labelWrapper, $inputWrapper);
+};
+
+Form.prototype._parseRepresentation = function (identifier, field, card) {
+  var self = this,
+      data;
+
+  if (field._representation) {
+    data = [field._representation.replace(/\$\{([^}]+)\}/g, function ($0, $1) {
+      return card[identifier + '.' + $1];
+    })];
+  }
+
+  return data;
+};
+
+Form.prototype.createCard = function (identifier, field) {
+  var self = this;
+  var cards = this._getDataForIdentifier(identifier).map(function (card) {
+    var $cardHeader = self.createCardHeader(identifier, field, card);
+    var $cardSubfields = self.createCardSubfields(identifier, field, card);
+    var $card = $('<li></li>', { class: 'card' }).append($cardHeader, $cardSubfields);
+
+    $card.on('click', '.card-header', function (e) {
+      $card.parent().find('.card-subfields').slideToggle();
+    });
+
+    return $card;
+  });
+
+  return this._createSlider(cards);
+};
+
+Form.prototype.createCardHeader = function (identifier, field, card) {
+  var representation = this._parseRepresentation(identifier, field, card);
+  var $header = $('<ul></ul>', { class: 'field-group card-header' });
+  return $header.append(this._createField(identifier, field, representation, { readonly: true }));
+};
+
+Form.prototype.createCardSubfields = function (identifier, field, card) {
+  var fields = this._flattenField(identifier, field);
+  var compound = [], self = this;
+
+  $.each(fields, function (i, f) {
+    var path = Slide.Block.getPathForIdentifier(i);
+    compound.push(self._createField(i, f, card[i]));
+  });
+
+  var $subfields = $('<ul></ul>', { class: 'field-group card-subfields' });
+  return $subfields.append.apply($subfields, compound);
+};
+
+Form.prototype.createCompound = function (identifier, field) {
+  var fields = this._flattenField(identifier, field);
+  var compound = [], self = this;
+
+  $.each(fields, function (i, f) {
+    var data = self._getDataForIdentifier(i);
+    var fs;
+
+    if (data.length > 0) {
+      fs = data.map(function (d) {
+        return self._createField(i, f, d);
+      });
+    } else {
+      fs = [self._createField(i, f, '')];
+    }
+
+    var slider = self._createSlider(fs);
+    compound.push($('<li></li>').append(slider));
+  });
+
+  var $fieldGroup = $('<ul></ul>', { class: 'field-group' });
+  return $fieldGroup.append.apply($fieldGroup, compound);
+};
+
+Form.prototype._getFieldsInElement = function ($element, multi /* = false */) {
+  multi = multi !== undefined;
+
+  var $fields = $element.find('.field-input'),
+      keystore = {};
+
+  $fields.each(function () {
+    var key = $(this).data('slide-identifier'),
+        value = $(this).val();
+
+    if (multi) {
+      keystore[key] = keystore[key] || [];
+      keystore[key].push(value);
+    } else {
+      keystore[key] = value;
+    }
+  });
+
+  return keystore;
+};
+
+Form.prototype._getFieldsForSelector = function (selector, multi /* = false */) {
+  return this._getFieldsInElement(this.$form.find(selector), multi);
+};
+
+Form.prototype.serialize = function () {
+  var cardFieldsSelector = '.card.slick-active .card-subfields';
+  var compoundFieldsSelector = '.compound-wrapper .slick-active';
+
+  var keystore = this._getFieldsForSelector([cardFieldsSelector, compoundFieldsSelector].join(', '));
+
+  return JSON.stringify(keystore);
+};
+
+Form.prototype.getUserData = function () {
+  var compoundData = this._getFieldsForSelector('.compound-wrapper .field:not(.slick-cloned)', true);
+  var cardData = {},
+      self = this;
+
+  this.$form.find('.card-wrapper').each(function (card) {
+    var key = $(this).find('.card .card-header .field-input').data('slide-identifier');
+    cardData[key] = [];
+    $(this).find('.card:not(.slick-cloned) .card-subfields').each(function () {
+      cardData[key].push(self._getFieldsInElement($(this)));
+    });
+  });
+
+  return $.extend(cardData, compoundData);
+};
+
+exports["default"] = Form;
 },{}],7:[function(require,module,exports){
 "use strict";
 var User = function () {
@@ -31334,4 +31356,4 @@ User.prototype.requestPrivateKey = function(cb) {
 };
 
 exports["default"] = User;
-},{}]},{},[1,2])
+},{}]},{},[1])
