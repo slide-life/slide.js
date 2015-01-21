@@ -426,14 +426,15 @@
 
 .slide-modal-header {
   background-color: #F3F3F3;
-  padding: 12px;
+  padding: 18px;
+  height: 40px;
   border-bottom: 1px solid #C0C0C0; }
 
-.slide-modal-header h2 {
-  font-family: 'Open Sans';
-  font-weight: 600;
-  font-size: 22px;
-  margin: 0; }
+.slide-modal-header .slide-logo {
+  width: 55px;
+  height: 40px;
+  margin: 0 auto;
+  background-image: url("../img/logo.png"); }
 
 /* Slick styling */
 .slick-slide {

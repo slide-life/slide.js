@@ -30681,14 +30681,13 @@ var Slide = {
     });
   },
 
-  prepareModal: function(title) {
+  prepareModal: function (title) {
     if (!this._modal) {
       this._modal = $('<div class="slide-modal"></div>');
-      var header = $('<div class="slide-modal-header"></div>').append('<h2>Fill with slide</h2>');
+      var header = $('<div class="slide-modal-header"></div>').append('<div class="slide-logo"></div>');
       this._modal.append(header, '<div class="slide-modal-body"></div>');
       this._modal.appendTo($('body'));
     }
-    this._modal.find("h2").text(title || 'Fill with slide');
     return this._modal;
   },
 

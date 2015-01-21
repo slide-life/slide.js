@@ -200,15 +200,16 @@ $drop-shadow: 0px 2px 4px 0px rgba(160, 160, 160, 0.40);
 
 .slide-modal-header {
   background-color: $light-grey;
-  padding: $field-padding;
+  padding: 18px;
+  height: 40px;
   border-bottom: $field-border;
 }
 
-.slide-modal-header h2 {
-  font-family: 'Open Sans';
-  font-weight: 600;
-  font-size: 22px;
-  margin: 0;
+.slide-modal-header .slide-logo {
+  width: 55px;
+  height: 40px;
+  margin: 0 auto;
+  background-image: url('../img/logo.png');
 }
 
 /* Slick styling */
