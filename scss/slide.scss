@@ -157,6 +157,7 @@ $drop-shadow: 0px 2px 4px 0px rgba(160, 160, 160, 0.40);
 
 .slide-form .new-field .add-button-wrapper {
   position: absolute;
+  z-index: 2;
   height: 100%;
   top: 0;
   width: 100%;
