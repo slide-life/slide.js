@@ -31473,15 +31473,19 @@ Form.prototype._createField = function (identifier, field, data, options /* = {}
 };
 
 Form.prototype._parseRepresentation = function (identifier, field, card) {
-  var data;
+  var data, fallback;
 
   if (field._representation) {
     data = [field._representation.replace(/\$\{([^}]+)\}/g, function ($0, $1) {
-      return card[identifier + '.' + $1] || '';
+      if (card[identifier + '.' + $1]) {
+        return card[identifier + '.' + $1];
+      } else {
+        fallback = ' ';
+      }
     })];
   }
 
-  return data;
+  return fallback || data;
 };
 
 Form.prototype._createButton = function () {
@@ -31498,13 +31502,21 @@ Form.prototype._buildCard = function (identifier, field, card) {
 
 Form.prototype.createCard = function (identifier, field) {
   var self = this;
+  var $newCard = this._buildCard(identifier, field, {}).addClass('new-field').append(this._createButton());
+
   var cards = this._getDataForIdentifier(identifier).map(function (card) {
     return self._buildCard(identifier, field, card);
   });
 
-  var $new = this._buildCard(identifier, field, {}).addClass('new-field').append(this._createButton());
-  cards.push($new);
+  if (cards.length === 0) {
+    var $card = this._buildCard(identifier, field, {});
+    [$card, $newCard].forEach(function ($c) {
+      $c.find('.card-subfields').show();
+    })
+    cards.push($card);
+  }
 
+  cards.push($newCard);
   return this._createSlider(cards);
 };
 
