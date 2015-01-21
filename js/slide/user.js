@@ -51,21 +51,24 @@ User.prototype.persist = function() {
 User.prototype.loadRelationships = function(success) {
   var self = this;
   $.get(Slide.endpoint("/users/" + this.number + "/vendor_users"),
-        function(encryptedUuids) {
-          var uuids = encryptedUuids.map(function(encryptedUuid) {
-            return Slide.crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
-          });
-          var vendorUsers = uuids.map(function(uuid) {
-            return Slide.VendorUser.new(uuid);
-          });
-          success(vendorUsers);
-        });
+    function(encryptedUuids) {
+      var uuids = encryptedUuids.map(function(encryptedUuid) {
+        return Slide.crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
+      });
+      var vendorUsers = uuids.map(function(uuid) {
+        return Slide.VendorUser.new(uuid);
+      });
+      success(vendorUsers);
+    });
 };
 
 User.load = function(fail, success) {
   if( window.localStorage.user ) {
-    var ret = this.fromObject(JSON.parse(window.localStorage.user));
-    ret.loadRelationships(success);
+    var user = this.fromObject(JSON.parse(window.localStorage.user));
+    user.loadRelationships(function(relationships) {
+      user.relationships = relationships;
+      success(user);
+    });
   } else {
     fail(success);
   }

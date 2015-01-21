@@ -30655,11 +30655,12 @@ var Block = require("./slide/block")["default"];
 var Vendor = require("./slide/vendor")["default"];
 var VendorForm = require("./slide/vendor_form")["default"];
 var VendorUser = require("./slide/vendor_user")["default"];
+var api = require("./slide/api")["default"];
 
 $('body').append('<div class="modal fade" style="display: none" id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-label" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button><h4 class="modal-title text-center" id="modal-label">slide</h4></div><div class="modal-body"></div></div></div></div>');
 
 var Slide = {
-  HOST: 'api-sandbox.slide.life',
+  HOST: api.HOST,
   DEFAULT_ORGANIZATION: 'slide.life',
   CACHED_BLOCKS: {},
 
@@ -30697,7 +30698,7 @@ var Slide = {
 };
 
 window.Slide = Slide;
-},{"./slide/actor":2,"./slide/block":4,"./slide/conversation":5,"./slide/crypto":6,"./slide/securable":7,"./slide/user":8,"./slide/vendor":9,"./slide/vendor_form":10,"./slide/vendor_user":11}],2:[function(require,module,exports){
+},{"./slide/actor":2,"./slide/api":3,"./slide/block":4,"./slide/conversation":5,"./slide/crypto":6,"./slide/securable":7,"./slide/user":8,"./slide/vendor":9,"./slide/vendor_form":10,"./slide/vendor_user":11}],2:[function(require,module,exports){
 "use strict";
 var api = require("./api")["default"];
 
@@ -30776,6 +30777,7 @@ exports["default"] = Actor;
 var HOST = 'api-sandbox.slide.life';
 
 exports["default"] = {
+  HOST: HOST,
   endpoint: function(/* protocol, */ path) {
     if (arguments.length > 1) {
       return arguments[0] + HOST + arguments[1];
@@ -31279,21 +31281,24 @@ User.prototype.persist = function() {
 User.prototype.loadRelationships = function(success) {
   var self = this;
   $.get(Slide.endpoint("/users/" + this.number + "/vendor_users"),
-        function(encryptedUuids) {
-          var uuids = encryptedUuids.map(function(encryptedUuid) {
-            return Slide.crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
-          });
-          var vendorUsers = uuids.map(function(uuid) {
-            return Slide.VendorUser.new(uuid);
-          });
-          success(vendorUsers);
-        });
+    function(encryptedUuids) {
+      var uuids = encryptedUuids.map(function(encryptedUuid) {
+        return Slide.crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
+      });
+      var vendorUsers = uuids.map(function(uuid) {
+        return Slide.VendorUser.new(uuid);
+      });
+      success(vendorUsers);
+    });
 };
 
 User.load = function(fail, success) {
   if( window.localStorage.user ) {
-    var ret = this.fromObject(JSON.parse(window.localStorage.user));
-    ret.loadRelationships(success);
+    var user = this.fromObject(JSON.parse(window.localStorage.user));
+    user.loadRelationships(function(relationships) {
+      user.relationships = relationships;
+      success(user);
+    });
   } else {
     fail(success);
   }
@@ -31368,11 +31373,13 @@ exports["default"] = User;
 var api = require("./api")["default"];
 var User = require("./user")["default"];
 
-var Vendor = function(name, pub, priv, key, chk, id) {
-  this.publicKey = pub;
-  this.privateKey = priv;
-  this.symmetricKey = key;
-  this.checksum = chk || Slide.crypto.encryptStringWithPackedKey('', pub);
+var Vendor = function(name, chk, id, keys) {
+  if( keys ) {
+    this.publicKey = keys.pub;
+    this.privateKey = keys.priv;
+    this.symmetricKey = keys.sym;
+    this.checksum = chk || Slide.crypto.encryptStringWithPackedKey('', pub);
+  }
   this.name = name;
   this.id = id;
 };
@@ -31392,8 +31399,14 @@ Vendor.prototype.persist = function() {
 };
 
 Vendor.fromObject = function(obj) {
-  var vendor = new Vendor(obj.name, obj.publicKey, obj.privateKey, obj.symmetricKey, obj.checksum, obj.id);
-  vendor.invite = obj.invite;
+  var keys = { pub: obj.publicKey, priv: obj.privateKey, sym: obj.symmetricKey }; 
+  var vendor;
+  if( keys.pub || keys.priv || keys.sym ) {
+    vendor = new Vendor(obj.name, obj.checksum, obj.id, keys);
+  } else {
+    vendor = new Vendor(obj.name, obj.checksum, obj.id);
+  }
+  vendor.invite = obj.invite_code;
   return vendor;
 };
 
@@ -31412,6 +31425,7 @@ Vendor.invite = function(name, cb) {
       cb(Vendor.fromObject(vendor));
     });
 };
+
 $.put = function(url, payload, cb) {
   $.ajax({ url: url, type: 'PUT', data: payload, success: cb });
 };
@@ -31485,6 +31499,7 @@ VendorForm.prototype.initialize = function(cb) {
 
 VendorForm.fromObject = function(obj) {
   var form = new VendorForm(obj.name, obj.form_fields, obj.vendor_id);
+  form.vendor_key = obj.vendor_key;
   form.id = obj.id;
   return form;
 };
@@ -31492,6 +31507,8 @@ VendorForm.fromObject = function(obj) {
 exports["default"] = VendorForm;
 },{}],11:[function(require,module,exports){
 "use strict";
+var User = require("./user")["default"];
+
 var VendorUser = function(uuid) {
   this.uuid = uuid;
 };
@@ -31525,5 +31542,7 @@ VendorUser.prototype.loadVendorForms = function(cb) {
         });
 };
 
-$.extend(VendorUser.prototype, Slide.User.prototype);
-},{}]},{},[1])
+$.extend(VendorUser.prototype, User.prototype);
+
+exports["default"] = VendorUser;
+},{"./user":8}]},{},[1])

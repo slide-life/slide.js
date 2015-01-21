@@ -18,6 +18,7 @@ VendorForm.prototype.initialize = function(cb) {
 
 VendorForm.fromObject = function(obj) {
   var form = new VendorForm(obj.name, obj.form_fields, obj.vendor_id);
+  form.vendor_key = obj.vendor_key;
   form.id = obj.id;
   return form;
 };

@@ -1,6 +1,7 @@
 var HOST = 'api-sandbox.slide.life';
 
 export default {
+  HOST: HOST,
   endpoint: function(/* protocol, */ path) {
     if (arguments.length > 1) {
       return arguments[0] + HOST + arguments[1];

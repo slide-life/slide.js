@@ -1,3 +1,5 @@
+import User from './user';
+
 var VendorUser = function(uuid) {
   this.uuid = uuid;
 };
@@ -31,5 +33,7 @@ VendorUser.prototype.loadVendorForms = function(cb) {
         });
 };
 
-$.extend(VendorUser.prototype, Slide.User.prototype);
+$.extend(VendorUser.prototype, User.prototype);
+
+export default VendorUser;
 

@@ -1,11 +1,13 @@
 import api from './api';
 import User from './user';
 
-var Vendor = function(name, pub, priv, key, chk, id) {
-  this.publicKey = pub;
-  this.privateKey = priv;
-  this.symmetricKey = key;
-  this.checksum = chk || Slide.crypto.encryptStringWithPackedKey('', pub);
+var Vendor = function(name, chk, id, keys) {
+  if( keys ) {
+    this.publicKey = keys.pub;
+    this.privateKey = keys.priv;
+    this.symmetricKey = keys.sym;
+    this.checksum = chk || Slide.crypto.encryptStringWithPackedKey('', pub);
+  }
   this.name = name;
   this.id = id;
 };
@@ -25,8 +27,14 @@ Vendor.prototype.persist = function() {
 };
 
 Vendor.fromObject = function(obj) {
-  var vendor = new Vendor(obj.name, obj.publicKey, obj.privateKey, obj.symmetricKey, obj.checksum, obj.id);
-  vendor.invite = obj.invite;
+  var keys = { pub: obj.publicKey, priv: obj.privateKey, sym: obj.symmetricKey }; 
+  var vendor;
+  if( keys.pub || keys.priv || keys.sym ) {
+    vendor = new Vendor(obj.name, obj.checksum, obj.id, keys);
+  } else {
+    vendor = new Vendor(obj.name, obj.checksum, obj.id);
+  }
+  vendor.invite = obj.invite_code;
   return vendor;
 };
 
@@ -45,6 +53,7 @@ Vendor.invite = function(name, cb) {
       cb(Vendor.fromObject(vendor));
     });
 };
+
 $.put = function(url, payload, cb) {
   $.ajax({ url: url, type: 'PUT', data: payload, success: cb });
 };
