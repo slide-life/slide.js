@@ -30703,7 +30703,7 @@ var Slide = {
     forms.forEach(function(form) {
       var li = $("<li></li>");
       li.click(function(evt) {
-        Slide.presentModalFormFromIdentifiers(['bank.card'], user.profile, cb);
+        Slide.presentModalFormFromIdentifiers(form.fields, user.profile, cb);
       });
       li.text(form.name);
       list.append(li);
@@ -30715,9 +30715,7 @@ var Slide = {
       this.Form.createFromIdentifiers(modal.find('.slide-modal-body'), identifiers, function (form) {
         form.build(userData, {
           onSubmit: function () {
-            console.log(form.serialize());
-            console.log(form.getUserData());
-            cb(form, form.serialize());
+            cb(form, form.getUserData());
           }
         });
         modal.show();
@@ -31646,6 +31644,20 @@ User.prototype.getId = function() {
 User.prototype.getDevice = function() {
   return { type: 'user', number: this.getId(), key: this.publicKey };
 };
+User.serializeProfile = function(patch) {
+  var prepped = {};
+  for( var k in patch ) {
+    prepped[k.replace(/\./g, '/')] = JSON.stringify(patch[k]);
+  }
+  return prepped;
+}
+User.deserializeProfile = function(patch) {
+  var prepped = {};
+  for( var k in patch ) {
+    prepped[k.replace(/\//g, '.')] = JSON.parse(patch[k]);
+  }
+  return prepped;
+}
 
 User.prompt = function(cb) {
   var user = new this();
@@ -31732,16 +31744,22 @@ User.register = function(number, cb) {
 User.prototype.decryptData = function(data) {
   return Slide.crypto.AES.decryptData(data, this.symmetricKey);
 };
+User.prototype.decrypt = function(data) {
+  return Slide.crypto.AES.decrypt(data, this.symmetricKey);
+};
 
 User.prototype.encryptData = function(data) {
   return Slide.crypto.AES.encryptData(data, this.symmetricKey);
+};
+User.prototype.encrypt = function(data) {
+  return Slide.crypto.AES.encrypt(data, this.symmetricKey);
 };
 
 User.prototype.getProfile = function(cb) {
   var self = this;
   api.get('/users/' + this.number + '/profile', {
     success: function(data) {
-      cb(self.decryptData(data[Object.keys(data)[0]]));
+      cb(self.decryptData(data));
     }
   });
 };
@@ -31751,7 +31769,7 @@ User.prototype.patchProfile = function(patch, cb) {
   api.patch('/users/' + this.number + '/profile', {
     data: { patch: this.encryptData(patch) },
     success: function (user) {
-      cb && cb(self.decryptData(user.profile[Object.keys(user.profile)[0]]));
+      cb && cb(self.decryptData(user.profile));
     }
   });
 };

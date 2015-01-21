@@ -55,7 +55,7 @@ var Slide = {
     forms.forEach(function(form) {
       var li = $("<li></li>");
       li.click(function(evt) {
-        Slide.presentModalFormFromIdentifiers(['bank.card'], user.profile, cb);
+        Slide.presentModalFormFromIdentifiers(form.fields, user.profile, cb);
       });
       li.text(form.name);
       list.append(li);
@@ -67,9 +67,7 @@ var Slide = {
       this.Form.createFromIdentifiers(modal.find('.slide-modal-body'), identifiers, function (form) {
         form.build(userData, {
           onSubmit: function () {
-            console.log(form.serialize());
-            console.log(form.getUserData());
-            cb(form, form.serialize());
+            cb(form, form.getUserData());
           }
         });
         modal.show();
