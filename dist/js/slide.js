@@ -31339,7 +31339,10 @@ var Form = function ($container, fields) {
   this.$container = $container;
 };
 
-Form.CARDS = ['slide.life:bank.card', 'slide.life:name'];
+Form.CARDS = ['slide.life:bank.card', 'slide.life:bank.account', 'slide.life:name',
+              'slide.life:mobile-phone', 'slide.life:home-phone', 'slide.life:university',
+              'slide.life:passport', 'slide.life:id-card', 'slide.life:drivers-license',
+              'slide.life:address'];
 
 Form.createFromIdentifiers = function ($container, identifiers, cb) {
   Block.getFieldsForIdentifiers(identifiers, function (fields) {
