@@ -31367,7 +31367,7 @@ Form.prototype.build = function (userData, options) {
   });
 
   this.$form.append(this._createSubmitButton());
-  this.initializeSliders();
+  this.initializeListeners();
 };
 
 Form.prototype._createSubmitButton = function () {
@@ -31376,7 +31376,7 @@ Form.prototype._createSubmitButton = function () {
   }).text('Send').on('click', this.options.onSubmit);
 };
 
-Form.prototype.initializeSliders = function () {
+Form.prototype.initializeListeners = function () {
   $('.slider').slick({
     slide: 'li',
     arrows: false,
@@ -31388,6 +31388,8 @@ Form.prototype.initializeSliders = function () {
     var $slider = $(this).parents('.slider');
     $slider.slickAdd($newField.clone().removeClass('slick-active'));
     $newField.removeClass('new-field').children('.add-button-wrapper').remove();
+  }).on('click', '.card-header', function () {
+    $(this).parents('.card-wrapper').find('.card-subfields').slideToggle();
   });
 };
 
@@ -31468,13 +31470,7 @@ Form.prototype._buildCard = function (identifier, field, card) {
 Form.prototype.createCard = function (identifier, field) {
   var self = this;
   var cards = this._getDataForIdentifier(identifier).map(function (card) {
-    var $card = self._buildCard(identifier, field, card);
-
-    $card.on('click', '.card-header', function (e) {
-      $card.parent().find('.card-subfields').slideToggle();
-    });
-
-    return $card;
+    return self._buildCard(identifier, field, card);
   });
 
   var $new = this._buildCard(identifier, field, {}).addClass('new-field').append(this._createButton());
