@@ -31392,7 +31392,7 @@ Form.prototype.initializeSliders = function () {
     var $slider = $(this).parents('.slider');
     $slider.slickAdd($newField.clone().removeClass('slick-active'));
     $newField.removeClass('new-field').children('.add-button-wrapper').remove();
-  })
+  });
 };
 
 Form.prototype._isCard = function (identifier) {
