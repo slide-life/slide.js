@@ -31635,13 +31635,15 @@ Form.prototype._getFieldsForSelector = function (selector, multi /* = false */) 
   return this._getFieldsInElement(this.$form.find(selector), multi);
 };
 
-Form.prototype.serialize = function () {
+Form.prototype.getData = function () {
   var cardFieldsSelector = '.card.slick-active .card-subfields';
   var compoundFieldsSelector = '.compound-wrapper .slick-active';
 
-  var keystore = this._getFieldsForSelector([cardFieldsSelector, compoundFieldsSelector].join(', '));
+  return this._getFieldsForSelector([cardFieldsSelector, compoundFieldsSelector].join(', '));
+};
 
-  return JSON.stringify(keystore);
+Form.prototype.serialize = function () {
+  return JSON.stringify(this.getData());
 };
 
 Form.prototype.getUserData = function () {
