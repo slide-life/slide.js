@@ -10,14 +10,14 @@ VendorUser.prototype.fromObject = function(obj) {
   this.description = obj.description;
   this.formFields = obj.formFields;
   this.vendor = obj.vendor;
-  this.checksum = obj.checksum || Slide.crypto.encryptStringWithPackedKey("", obj.symmetricKey);
+  this.checksum = obj.checksum || Slide.crypto.encryptStringWithPackedKey('', obj.symmetricKey);
   this.privateKey = obj.privateKey;
   this.symmetricKey = obj.symmetricKey;
 };
 
 VendorUser.prototype.load = function(user, cb) {
   var self = this;
-  $.get(Slide.endpoint("/vendor_users/" + this.uuid),
+  $.get(Slide.endpoint('/vendor_users/' + this.uuid),
     function(vendor) {
       self.fromObject(vendor, user);
       cb(self);
@@ -32,10 +32,10 @@ VendorUser.createRelationship = function(user, vendor, cb) {
   var key = Slide.crypto.AES.generateKey();
   var userKey = Slide.crypto.encryptStringWithPackedKey(key, vendor.publicKey);
   var vendorKey = Slide.crypto.encryptStringWithPackedKey(key, vendor.publicKey);
-  var checksum = Slide.crypto.encryptStringWithPackedKey("", user.publicKey);
-  api.post("/vendors/"+vendor.id+"/vendor_users", {
+  var checksum = Slide.crypto.encryptStringWithPackedKey('', user.publicKey);
+  api.post('/vendors/'+vendor.id+'/vendor_users', {
     data: {
-      key: key, 
+      key: userKey, 
       public_key: user.publicKey,
       checksum: checksum,
       vendor_key: vendorKey
