@@ -9,7 +9,9 @@ $light-green: #22C064;
 
 $field-height: 58px;
 $field-radius: 4px;
-$field-spacing: 12px;
+$field-padding: 12px;
+$field-vertical-margin: 12px;
+$field-horizontal-margin: 12px;
 $field-label-width: 50%;
 $field-border: 1px solid $medium-grey;
 
@@ -30,7 +32,7 @@ $field-border: 1px solid $medium-grey;
   background-color: $light-grey;
   list-style-type: none;
   margin: 0;
-  padding: $field-spacing 0 0 0;
+  padding: $field-vertical-margin 0 0 0;
   padding-top: 0;
   overflow: hidden;
 }
@@ -38,7 +40,7 @@ $field-border: 1px solid $medium-grey;
 /* Field groups */
 
 .slide-form .field-group {
-  margin-top: $field-spacing;
+  margin-top: $field-vertical-margin;
 }
 
 .slide-form .field-group .field {
@@ -53,14 +55,14 @@ $field-border: 1px solid $medium-grey;
 .slide-form .field-group .field-label-wrapper {
   float: left;
   width: $field-label-width;
-  padding: 0 $field-spacing;
+  padding: 0 $field-padding;
   box-sizing: border-box;
 }
 
 .slide-form .field-group .field-input-wrapper {
   float: right;
   width: 100% - $field-label-width;
-  padding: 0 $field-spacing;
+  padding: 0 $field-padding;
   box-sizing: border-box;
   text-align: right;
 }
@@ -83,7 +85,7 @@ $field-border: 1px solid $medium-grey;
   background-color: $light-green;
   color: white;
   width: 100%;
-  margin-top: $field-spacing;
+  margin-top: $field-vertical-margin;
   text-align: center;
   height: $field-height;
   line-height: $field-height;
@@ -147,7 +149,7 @@ $field-border: 1px solid $medium-grey;
 
 .slide-modal-header {
   background-color: $light-grey;
-  padding: $field-spacing;
+  padding: $field-padding;
   border-bottom: $field-border;
 }
 
@@ -161,6 +163,6 @@ $field-border: 1px solid $medium-grey;
 /* Slick styling */
 
 .slick-slide {
-  margin: 0 $field-spacing;
+  margin: 0 $field-horizontal-margin;
 }
 
