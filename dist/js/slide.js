@@ -31425,7 +31425,9 @@ Form.prototype.initializeListeners = function () {
     var $slider = $(this).parents('.slider');
     $slider.slickAdd($newField.clone().removeClass('slick-active'));
     $newField.removeClass('new-field').children('.add-button-wrapper').remove();
-  }).on('click', '.card-header', function () {
+  }).on('click', '.card-header', function (evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
     $(this).parents('.card-wrapper').find('.card-subfields').slideToggle();
   });
 };
