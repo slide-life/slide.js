@@ -160,6 +160,13 @@ Form.prototype.initializeSliders = function () {
     arrows: false,
     focusOnSelect: true
   });
+
+  $('.slide-form').on('click', '.add-button', function () {
+    var $newField = $(this).parents('.new-field');
+    var $slider = $(this).parents('.slider');
+    $slider.slickAdd($newField.clone().removeClass('slick-active'));
+    $newField.removeClass('new-field').children('.add-button-wrapper').remove();
+  })
 };
 
 Form.prototype._isCard = function (identifier) {
@@ -217,19 +224,29 @@ Form.prototype._parseRepresentation = function (identifier, field, card) {
 
   if (field._representation) {
     data = [field._representation.replace(/\$\{([^}]+)\}/g, function ($0, $1) {
-      return card[identifier + '.' + $1];
+      return card[identifier + '.' + $1] || '';
     })];
   }
 
   return data;
 };
 
+Form.prototype._createButton = function () {
+  var $button = $('<div class="add-button">+</div>');
+  var $buttonInnerWrapper = $('<div class="add-button-inner-wrapper"></div>').append($button);
+  return $('<div class="add-button-wrapper"></div>').append($buttonInnerWrapper);
+}
+
+Form.prototype._buildCard = function (identifier, field, card) {
+  var $cardHeader = this.createCardHeader(identifier, field, card);
+  var $cardSubfields = this.createCardSubfields(identifier, field, card);
+  return $('<li></li>', { class: 'card' }).append($cardHeader, $cardSubfields);
+};
+
 Form.prototype.createCard = function (identifier, field) {
   var self = this;
   var cards = this._getDataForIdentifier(identifier).map(function (card) {
-    var $cardHeader = self.createCardHeader(identifier, field, card);
-    var $cardSubfields = self.createCardSubfields(identifier, field, card);
-    var $card = $('<li></li>', { class: 'card' }).append($cardHeader, $cardSubfields);
+    var $card = self._buildCard(identifier, field, card);
 
     $card.on('click', '.card-header', function (e) {
       $card.parent().find('.card-subfields').slideToggle();
@@ -237,6 +254,9 @@ Form.prototype.createCard = function (identifier, field) {
 
     return $card;
   });
+
+  var $new = this._buildCard(identifier, field, {}).addClass('new-field').append(this._createButton());
+  cards.push($new);
 
   return this._createSlider(cards);
 };
@@ -274,6 +294,9 @@ Form.prototype.createCompound = function (identifier, field) {
     } else {
       fs = [self._createField(i, f, '')];
     }
+
+    var $new = self._createField(i, f, '').addClass('new-field').append(self._createButton());
+    fs.push($new);
 
     var slider = self._createSlider(fs);
     compound.push($('<li></li>').append(slider));
@@ -318,14 +341,14 @@ Form.prototype.serialize = function () {
 };
 
 Form.prototype.getUserData = function () {
-  var compoundData = this._getFieldsForSelector('.compound-wrapper .field:not(.slick-cloned)', true);
+  var compoundData = this._getFieldsForSelector('.compound-wrapper .field:not(.slick-cloned, .new-field)', true);
   var cardData = {},
       self = this;
 
   this.$form.find('.card-wrapper').each(function (card) {
     var key = $(this).find('.card .card-header .field-input').data('slide-identifier');
     cardData[key] = [];
-    $(this).find('.card:not(.slick-cloned) .card-subfields').each(function () {
+    $(this).find('.card:not(.slick-cloned, .new-field) .card-subfields').each(function () {
       cardData[key].push(self._getFieldsInElement($(this)));
     });
   });

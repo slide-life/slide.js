@@ -15,6 +15,10 @@ $field-horizontal-margin: 12px;
 $field-label-width: 50%;
 $field-border: 1px solid $medium-grey;
 
+$add-button-size: 24px;
+
+$drop-shadow: 0px 2px 4px 0px rgba(160, 160, 160, 0.40);
+
 *:not(input, textarea) {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -110,7 +114,7 @@ $field-border: 1px solid $medium-grey;
 
 .slide-form .card-wrapper .card-header .field {
   border-bottom: $field-border;
-  box-shadow: 0px 2px 4px 0px rgba(160, 160, 160, 0.40);
+  box-shadow: $drop-shadow;
 }
 
 .slide-form .card-wrapper .card-header .field {
@@ -133,6 +137,48 @@ $field-border: 1px solid $medium-grey;
   border-bottom-left-radius: $field-radius;
   border-bottom-right-radius: $field-radius;
   border-bottom: $field-border;
+}
+
+.slide-form .new-field {
+  position: relative;
+}
+
+.slide-form .field-group .field.new-field {
+  border: none;
+}
+
+.slide-form .new-field .card-header .field {
+  box-shadow: none;
+}
+
+.slide-form .new-field .add-button-wrapper {
+  position: absolute;
+  height: 100%;
+  top: 0;
+  width: 100%;
+  background-color: $light-grey;
+}
+
+.slide-form .new-field .add-button-inner-wrapper {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 1px;
+  margin: 1px;
+}
+
+.slide-form .new-field .add-button {
+  margin-top: -($add-button-size / 2);
+  margin-left: -($add-button-size / 2);
+  background-color: $light-green;
+  border: $field-border;
+  color: white;
+  cursor: pointer;
+  text-align: center;
+  line-height: $add-button-size;
+  width: $add-button-size;
+  height: $add-button-size;
+  border-radius: $add-button-size / 2;
 }
 
 /* Modal */
@@ -165,4 +211,3 @@ $field-border: 1px solid $medium-grey;
 .slick-slide {
   margin: 0 $field-horizontal-margin;
 }
-
