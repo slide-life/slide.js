@@ -31428,7 +31428,8 @@ Form.prototype.build = function (userData, options) {
 
   this.userData = userData;
   this.options = options;
-  this.$form = $('<ul></ul>', { 'class': 'slide-form' }).appendTo(this.$container);
+  this.$form = $('<ul></ul>', { 'class': 'slide-form' });
+  this.$container.html(this.$form);
 
   $.each(this.fields, function (identifier, field) {
     if (self._isCard(identifier)) {
