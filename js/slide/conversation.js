@@ -1,16 +1,17 @@
 import api from './api';
 
-var Conversation = function(upstream, downstream, cb) {
-  var key = Slide.crypto.AES.generateKey();
+var Conversation = function(upstream, downstream, cb, sym) {
+  var key = sym || Slide.crypto.AES.generateKey();
   var obj = {
     symmetricKey: key,
     key: Slide.crypto.encryptStringWithPackedKey(key, downstream.key),
-    upstream_id: upstream,
-    upstream_type: 'actor',
+    upstream_type: upstream.type,
     downstream_type: downstream.type
   };
   var device = downstream.type === 'user' ? 'downstream_number' : 'downstream_id';
+  var upDevice = upstream.type === 'user' ? 'upstream_number' : 'upstream_id';
   obj[device] = downstream.downstream;
+  obj[upDevice] = upstream.upstream;
   Conversation.FromObject.call(this, obj, cb.bind(this));
 };
 
@@ -61,6 +62,15 @@ Conversation.prototype.deposit = function (fields) {
 Conversation.prototype.respond = function(fields) {
   api.put('/conversations/' + this.id, {
     data: { fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey) }
+  });
+};
+
+Conversation.prototype.submit = function(uuid, fields) {
+  var enc = Slide.crypto.AES.encryptData(fields, this.symmetricKey);
+  var payload = {};
+  payload[uuid] = enc;
+  api.put('/conversations/' + this.id, {
+    data: { fields: payload, patch: payload }
   });
 };
 

@@ -41,7 +41,10 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
       onMessage(fields);
     });
 
-    var conversation = new Slide.Conversation(self.id, downstream, onCreate);
+    var conversation = new Slide.Conversation({
+      upstream: self.id,
+      type: 'actor'
+    }, downstream, onCreate);
     self.key = conversation.symmetricKey;
   });
 };
