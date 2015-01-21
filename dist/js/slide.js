@@ -31336,8 +31336,8 @@ $.patch = function(url, data, cb) {
 User.prototype.patchProfile = function(patch, cb) {
   $.patch(Slide.endpoint("/users/" + this.number + "/profile"),
     JSON.stringify({patch: patch}),
-    function(profile) {
-      cb && cb(profile);
+    function(user) {
+      cb && cb(user.profile);
     });
 };
 
@@ -31525,6 +31525,9 @@ VendorUser.prototype.load = function(cb) {
           cb(self);
         });
 };
+
+// VendorUser.createRelationship = $.post(/vendors/:id/vendors_users,
+//   {key, public_key, checksum, vendor_key})
 
 VendorUser.prototype.loadVendorForms = function(cb) {
   $.get(Slide.endpoint("/vendor_users/" + this.uuid + "/vendor_forms"),

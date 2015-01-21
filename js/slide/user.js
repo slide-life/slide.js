@@ -110,8 +110,8 @@ $.patch = function(url, data, cb) {
 User.prototype.patchProfile = function(patch, cb) {
   $.patch(Slide.endpoint("/users/" + this.number + "/profile"),
     JSON.stringify({patch: patch}),
-    function(profile) {
-      cb && cb(profile);
+    function(user) {
+      cb && cb(user.profile);
     });
 };
 

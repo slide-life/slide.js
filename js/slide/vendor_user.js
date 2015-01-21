@@ -21,6 +21,9 @@ VendorUser.prototype.load = function(cb) {
         });
 };
 
+// VendorUser.createRelationship = $.post(/vendors/:id/vendors_users,
+//   {key, public_key, checksum, vendor_key})
+
 VendorUser.prototype.loadVendorForms = function(cb) {
   $.get(Slide.endpoint("/vendor_users/" + this.uuid + "/vendor_forms"),
         function(vendorForms) {
