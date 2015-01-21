@@ -440,4 +440,22 @@
 .slick-slide {
   margin: 0 12px; }
 
+/* Modal form portal list */
+.form-list {
+  font-family: 'Helvetica Neue', sans-serif;
+  list-style: none;
+  padding: 0; }
+
+.form-list li {
+  width: 50%;
+  float: left;
+  margin: 0;
+  padding: 20px;
+  box-sizing: border-box;
+  pointer: cursor;
+  text-align: center; }
+
+.form-list li:hover {
+  background: #F3F3F3; }
+
 /*# sourceMappingURL=slide.css.map */

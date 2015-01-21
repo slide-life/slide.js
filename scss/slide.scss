@@ -217,3 +217,23 @@ $drop-shadow: 0px 2px 4px 0px rgba(160, 160, 160, 0.40);
 .slick-slide {
   margin: 0 $field-horizontal-margin;
 }
+
+/* Modal form portal list */
+.form-list {
+  font-family: 'Helvetica Neue', sans-serif;
+  list-style: none;
+  padding: 0;
+}
+
+.form-list li {
+  width: 50%;
+  float: left;
+  margin: 0;
+  padding: 20px;
+  box-sizing: border-box;
+  pointer: cursor;
+  text-align: center;
+}
+.form-list li:hover {
+  background: $light-grey;
+}
