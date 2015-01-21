@@ -112,6 +112,11 @@ $drop-shadow: 0px 2px 4px 0px rgba(160, 160, 160, 0.40);
 
 /* Cards */
 
+.slide-form .card-wrapper .card-header {
+  z-index: 1;
+  position: relative;
+}
+
 .slide-form .card-wrapper .card-header .field {
   border-bottom: $field-border;
   box-shadow: $drop-shadow;
@@ -126,7 +131,6 @@ $drop-shadow: 0px 2px 4px 0px rgba(160, 160, 160, 0.40);
   display: none;
   position: relative;
   top: -$field-radius;
-  z-index: -99;
 }
 
 .slide-form .card-wrapper .card-subfields .field:first-child {

@@ -352,6 +352,10 @@
   border-bottom: 1px solid #C0C0C0; }
 
 /* Cards */
+.slide-form .card-wrapper .card-header {
+  z-index: 1;
+  position: relative; }
+
 .slide-form .card-wrapper .card-header .field {
   border-bottom: 1px solid #C0C0C0;
   box-shadow: 0px 2px 4px 0px rgba(160, 160, 160, 0.4); }
@@ -363,8 +367,7 @@
   margin-top: 0;
   display: none;
   position: relative;
-  top: -4px;
-  z-index: -99; }
+  top: -4px; }
 
 .slide-form .card-wrapper .card-subfields .field:first-child {
   border-top: none; }
