@@ -30754,6 +30754,19 @@ var Slide = {
         modal.show();
         $(window).trigger('resize');
     });
+  },
+
+  presentModalFormWithIdentifiers: function (identifiers, userData, cb) {
+      var modal = this.prepareModal();
+      this.Form.createFromIdentifiers(modal.find('.slide-modal-body'), identifiers, function (form) {
+        form.build(userData, {
+          onSubmit: function () {
+            cb(form);
+          }
+        });
+        modal.show();
+        $(window).trigger('resize');
+    });
   }
 };
 
@@ -32000,7 +32013,7 @@ VendorUser.prototype.fromObject = function(obj) {
 
 VendorUser.prototype.load = function(cb) {
   var self = this;
-  api.get('/vendor_users/' + this.uuid + '/profile',
+  api.get('/vendor_users/' + this.uuid,
     { success: function(vendor) {
       self.fromObject(vendor);
       cb(self);
@@ -32013,7 +32026,7 @@ VendorUser.createRelationship = function(user, vendor, cb) {
     keys = k;
   });
   var key = Slide.crypto.AES.generateKey();
-  var userKey = Slide.crypto.encryptStringWithPackedKey(key, vendor.publicKey);
+  var userKey = Slide.crypto.encryptStringWithPackedKey(key, user.publicKey);
   var vendorKey = Slide.crypto.encryptStringWithPackedKey(key, vendor.publicKey);
   var checksum = Slide.crypto.encryptStringWithPackedKey('', user.publicKey);
   api.post('/vendors/'+vendor.id+'/vendor_users', {

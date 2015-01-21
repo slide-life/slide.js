@@ -106,6 +106,19 @@ var Slide = {
         modal.show();
         $(window).trigger('resize');
     });
+  },
+
+  presentModalFormWithIdentifiers: function (identifiers, userData, cb) {
+      var modal = this.prepareModal();
+      this.Form.createFromIdentifiers(modal.find('.slide-modal-body'), identifiers, function (form) {
+        form.build(userData, {
+          onSubmit: function () {
+            cb(form);
+          }
+        });
+        modal.show();
+        $(window).trigger('resize');
+    });
   }
 };
 
