@@ -37,19 +37,40 @@ var Slide = {
     });
   },
 
-  presentModalFormFromIdentifiers: function (identifiers, userData) {
+  prepareModal: function(title) {
     if (!this._modal) {
-        this._modal = $('<div class="slide-modal"></div>');
-        var header = $('<div class="slide-modal-header"></div>').append('<h2>Fill with slide</h2>');
-        this._modal.append(header, '<div class="slide-modal-body"></div>');
-        this._modal.appendTo($('body'));
-      }
-      var modal = this._modal;
+      this._modal = $('<div class="slide-modal"></div>');
+      var header = $('<div class="slide-modal-header"></div>').append('<h2>Fill with slide</h2>');
+      this._modal.append(header, '<div class="slide-modal-body"></div>');
+      this._modal.appendTo($('body'));
+    }
+    this._modal.find("h2").text(title || 'Fill with slide');
+    return this._modal;
+  },
+
+  presentFormsModal: function(forms, user, cb) {
+    var modal = this.prepareModal('Your Forms');
+    modal.toggle();
+    var list = $("<ul class='form-list'></ul>");
+    modal.append(list);
+    forms.forEach(function(form) {
+      var li = $("<li></li>");
+      li.click(function(evt) {
+        Slide.presentModalFormFromIdentifiers(['bank.card'], user.profile, cb);
+      });
+      li.text(form.name);
+      list.append(li);
+    })
+  },
+
+  presentModalFormFromIdentifiers: function (identifiers, userData, cb) {
+      var modal = this.prepareModal();
       this.Form.createFromIdentifiers(modal.find('.slide-modal-body'), identifiers, function (form) {
         form.build(userData, {
           onSubmit: function () {
             console.log(form.serialize());
             console.log(form.getUserData());
+            cb(form, form.serialize());
           }
         });
         modal.show();

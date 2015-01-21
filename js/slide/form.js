@@ -132,6 +132,10 @@ Form.createFromIdentifiers = function ($container, identifiers, cb) {
   });
 };
 
+Form.prototype.remove = function() {
+  this.$form.remove();
+};
+
 Form.prototype.build = function (userData, options) {
   var self = this;
 
