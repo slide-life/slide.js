@@ -9,7 +9,7 @@ var Conversation = function(upstream, downstream, cb) {
     upstream_type: 'actor',
     downstream_type: downstream.type
   };
-  var device = downstream.type == 'user' ? 'downstream_number' : 'downstream_id';
+  var device = downstream.type === 'user' ? 'downstream_number' : 'downstream_id';
   obj[device] = downstream.downstream;
   Conversation.FromObject.call(this, obj, cb.bind(this));
 };
@@ -17,12 +17,12 @@ var Conversation = function(upstream, downstream, cb) {
 Conversation.FromObject = function(obj, cb) {
   this.symmetricKey = obj.symmetricKey;
   var self = this;
-  var downstream_pack = obj.downstream_type.toLowerCase() == "user" ? {
+  var downstream_pack = obj.downstream_type.toLowerCase() === 'user' ? {
     type: obj.downstream_type.toLowerCase(), number: obj.downstream_number
   } : {
     type: obj.downstream_type.toLowerCase(), id: obj.downstream_id
   };
-  var upstream_pack = obj.upstream_type.toLowerCase() == "user" ? {
+  var upstream_pack = obj.upstream_type.toLowerCase() === 'user' ? {
     type: obj.upstream_type.toLowerCase(), number: obj.upstream_number
   } : {
     type: obj.upstream_type.toLowerCase(), id: obj.upstream_id

@@ -1,3 +1,5 @@
+import api from './api';
+
 var VendorForm = function(name, fields, vendorId) {
   this.name = name;
   this.fields = fields;
@@ -5,14 +7,14 @@ var VendorForm = function(name, fields, vendorId) {
 };
 
 VendorForm.get = function(id, cb) {
-  $.get(Slide.endpoint("/vendor_forms/" + id),
-    function(vendor) {
+  api.get('/vendor_forms/' + id, {
+    success: function(vendor) {
       cb(VendorForm.fromObject(vendor));
-    });
+    }
+  });
 };
 
 VendorForm.prototype.initialize = function(cb) {
-  var self = this;
   // TODO: perhaps allow a vendor form to be posted after the fact
 };
 
@@ -24,4 +26,3 @@ VendorForm.fromObject = function(obj) {
 };
 
 export default VendorForm;
-

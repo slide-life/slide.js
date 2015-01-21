@@ -21,7 +21,7 @@ Securable.prototype.encryptedSymKey = function() {
 };
 
 Securable.prototype.checksum = function() {
-  return Slide.crypto.encryptStringWithPackedKey("", this.symmetricKey);
+  return Slide.crypto.encryptStringWithPackedKey('', this.symmetricKey);
 };
 
 Securable.prototype.decrypt = function(data) {

@@ -194,7 +194,7 @@ Form.prototype._createSlider = function (fields) {
 Form.prototype._createField = function (identifier, field, data, options /* = {} */) {
   options = options || {};
 
-  var listItem = $('<li></li>', { class: 'field' }),
+  var $listItem = $('<li></li>', { class: 'field' }),
       $labelWrapper = $('<div></div>', { 'class': 'field-label-wrapper' }),
       $inputWrapper = $('<div></div>', { 'class': 'field-input-wrapper' });
 
@@ -209,12 +209,11 @@ Form.prototype._createField = function (identifier, field, data, options /* = {}
 
   $inputWrapper.append(input);
   $labelWrapper.append($('<label></label>').text(field._description));
-  return listItem.append($labelWrapper, $inputWrapper);
+  return $listItem.append($labelWrapper, $inputWrapper);
 };
 
 Form.prototype._parseRepresentation = function (identifier, field, card) {
-  var self = this,
-      data;
+  var data;
 
   if (field._representation) {
     data = [field._representation.replace(/\$\{([^}]+)\}/g, function ($0, $1) {
@@ -253,7 +252,6 @@ Form.prototype.createCardSubfields = function (identifier, field, card) {
   var compound = [], self = this;
 
   $.each(fields, function (i, f) {
-    var path = Block.getPathForIdentifier(i);
     compound.push(self._createField(i, f, card[i]));
   });
 

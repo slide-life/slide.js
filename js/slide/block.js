@@ -41,16 +41,16 @@ var Block = {
       remaining_path = remaining_path.slice(1);
     }
 
-    if (remaining_path.length == 0) {
+    if (remaining_path.length === 0) {
       return hierarchy;
     }
 
     var ret = '';
     Block._inherits(field).forEach(function (inheritance) {
       var result = Block._resolve(([inheritance].concat(remaining_path)).join('.'), block);
-      if (result) ret = result;
+      if (result) { ret = result; }
     });
-    if (ret != '') return ret;
+    if (ret !== '') { return ret; }
 
     Block._components(field).filter(function (component) {
       return Block._componentName(component) === remaining_path[0];

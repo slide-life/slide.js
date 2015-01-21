@@ -1,7 +1,6 @@
 var HOST = 'api-sandbox.slide.life';
 
 export default {
-  HOST: HOST,
   endpoint: function(/* protocol, */ path) {
     if (arguments.length > 1) {
       return arguments[0] + HOST + arguments[1];
@@ -11,7 +10,7 @@ export default {
   },
 
   enableJSON: function (options) {
-    if (options.data) { options.data = JSON.stringify(options.data); };
+    if (options.data) { options.data = JSON.stringify(options.data); }
     options.contentType = 'application/json; charset=utf-8';
     options.dataType = 'json';
   },
@@ -33,6 +32,13 @@ export default {
   put: function (path, options) {
     options.url = this.endpoint(path);
     options.type = 'PUT';
+    this.enableJSON(options);
+    $.ajax(options);
+  },
+
+  patch: function (path, options) {
+    options.url = this.endpoint(path);
+    options.type = 'PATCH';
     this.enableJSON(options);
     $.ajax(options);
   },

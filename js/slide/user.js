@@ -16,7 +16,7 @@ User.prototype.getDevice = function() {
 
 User.prompt = function(cb) {
   var user = new this();
-  var form = $("<form><input type='text'><input type='submit' value='Send'></form>");
+  var form = $('<form><input type="text"><input type="submit" value="Send"></form>');
   $('#modal .modal-body').append(form);
   form.submit(function(evt) {
     evt.preventDefault();
@@ -30,7 +30,7 @@ User.prompt = function(cb) {
       }
     });
   });
-  $("#modal").modal('toggle');
+  $('#modal').modal('toggle');
   return user;
 };
 
@@ -50,8 +50,8 @@ User.prototype.persist = function() {
 
 User.prototype.loadRelationships = function(success) {
   var self = this;
-  $.get(Slide.endpoint("/users/" + this.number + "/vendor_users"),
-    function(encryptedUuids) {
+  api.get('/users/' + this.number + '/vendor_users', {
+    success: function (encryptedUuids) {
       var uuids = encryptedUuids.map(function(encryptedUuid) {
         return Slide.crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
       });
@@ -59,7 +59,8 @@ User.prototype.loadRelationships = function(success) {
         return Slide.VendorUser.new(uuid);
       });
       success(vendorUsers);
-    });
+    }
+  });
 };
 
 User.load = function(fail, success) {
@@ -96,23 +97,18 @@ User.register = function(number, cb) {
 };
 
 User.prototype.getProfile = function(cb) {
-  $.get(Slide.endpoint("/users/" + this.number + "/profile"),
-    function(profile) {
-      cb(profile);
-    });
-};
-
-$.patch = function(url, data, cb) {
-  $.ajax({
-    url: url, type: 'PATCH', data: data, success: cb
+  api.get('/users/' + this.number + '/profile', {
+    success: cb
   });
 };
+
 User.prototype.patchProfile = function(patch, cb) {
-  $.patch(Slide.endpoint("/users/" + this.number + "/profile"),
-    JSON.stringify({patch: patch}),
-    function(user) {
+  api.patch('/users/' + this.number + '/profile', {
+    data: { patch: patch },
+    success: function (user) {
       cb && cb(user.profile);
-    });
+    }
+  });
 };
 
 User.prototype.listen = function(cb) {
@@ -120,7 +116,7 @@ User.prototype.listen = function(cb) {
   var self = this;
   socket.onmessage = function (event) {
     var message = JSON.parse(event.data);
-    if( message.verb == "verb_request" ) {
+    if (message.verb === 'verb_request') {
       cb(message.payload.blocks, message.payload.conversation);
     } else {
       var data = message.payload.fields;
