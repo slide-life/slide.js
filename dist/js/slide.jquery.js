@@ -31846,21 +31846,45 @@ VendorUser.prototype.fromObject = function(obj) {
   this.description = obj.description;
   this.formFields = obj.formFields;
   this.vendor = obj.vendor;
-  this.checksum = obj.checksum || Slide.crypto.encryptStringWithPackedKey('', obj.key);
+  this.checksum = obj.checksum || Slide.crypto.encryptStringWithPackedKey("", obj.symmetricKey);
+  this.privateKey = obj.privateKey;
+  this.symmetricKey = obj.symmetricKey;
 };
 
-VendorUser.prototype.load = function(cb) {
+VendorUser.prototype.load = function(user, cb) {
   var self = this;
-  api.get('/vendor_users/' + this.uuid, {
-    success: function (vendorUserData) {
-      self.fromObject(vendorUserData);
+  $.get(Slide.endpoint("/vendor_users/" + this.uuid),
+    function(vendor) {
+      self.fromObject(vendor, user);
       cb(self);
+    });
+};
+
+VendorUser.createRelationship = function(user, vendor, cb) {
+  var keys;
+  Slide.crypto.generateKeys(function(k) {
+    keys = k;
+  });
+  var key = Slide.crypto.AES.generateKey();
+  var userKey = Slide.crypto.encryptStringWithPackedKey(key, vendor.publicKey);
+  var vendorKey = Slide.crypto.encryptStringWithPackedKey(key, vendor.publicKey);
+  var checksum = Slide.crypto.encryptStringWithPackedKey("", user.publicKey);
+  api.post("/vendors/"+vendor.id+"/vendor_users", {
+    data: {
+      key: key, 
+      public_key: user.publicKey,
+      checksum: checksum,
+      vendor_key: vendorKey
+    },
+    success: function(vendor) {
+      vendor.checksum = checksum;
+      vendor.symmtricKey = key;
+      var vendorUser = new VendorUser(vendor.uuid);
+      vendorUser.fromObject(vendor);
+      cb && cb(vendorUser);
     }
   });
 };
-
-// VendorUser.createRelationship = api.post(/vendors/:id/vendors_users,
-//   {key, public_key, checksum, vendor_key})
 
 VendorUser.prototype.loadVendorForms = function(cb) {
   api.get('/vendor_users/' + this.uuid + '/vendor_forms', {
