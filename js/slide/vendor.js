@@ -101,4 +101,13 @@ Vendor.prototype.createForm = function (name, formFields, cb) {
   });
 };
 
+Vendor.prototype.loadForms = function(cb) {
+  api.get('/vendors/' + this.id + '/vendor_forms', {
+    data: { checksum: this.checksum },
+    success: function(forms) {
+      cb(forms);
+    }
+  });
+};
+
 export default Vendor;

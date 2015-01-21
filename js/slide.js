@@ -47,6 +47,21 @@ var Slide = {
     return this._modal;
   },
 
+  presentVendorForms: function(forms, vendor, cb) {
+    var modal = this.prepareModal('Your Forms');
+    modal.toggle();
+    var list = $("<ul class='form-list'></ul>");
+    modal.append(list);
+    forms.forEach(function(form) {
+      var li = $("<li></li>");
+      li.click(function(evt) {
+        cb(form);
+      });
+      li.text(form.name);
+      list.append(li);
+    })
+  },
+
   presentFormsModal: function(forms, user, cb) {
     var modal = this.prepareModal('Your Forms');
     modal.toggle();

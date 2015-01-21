@@ -30695,6 +30695,21 @@ var Slide = {
     return this._modal;
   },
 
+  presentVendorForms: function(forms, vendor, cb) {
+    var modal = this.prepareModal('Your Forms');
+    modal.toggle();
+    var list = $("<ul class='form-list'></ul>");
+    modal.append(list);
+    forms.forEach(function(form) {
+      var li = $("<li></li>");
+      li.click(function(evt) {
+        cb(form);
+      });
+      li.text(form.name);
+      list.append(li);
+    })
+  },
+
   presentFormsModal: function(forms, user, cb) {
     var modal = this.prepareModal('Your Forms');
     modal.toggle();
@@ -31898,6 +31913,15 @@ Vendor.prototype.createForm = function (name, formFields, cb) {
     },
     success: function (form) {
       cb && cb(Slide.VendorForm.fromObject(form));
+    }
+  });
+};
+
+Vendor.prototype.loadForms = function(cb) {
+  api.get('/vendors/' + this.id + '/vendor_forms', {
+    data: { checksum: this.checksum },
+    success: function(forms) {
+      cb(forms);
     }
   });
 };
