@@ -387,4 +387,10 @@ Form.prototype.getPatchedUserData = function () {
   return patch;
 };
 
+Form.prototype.getStringifiedPatchedUserData = function () {
+  return this.getPatchedUserData().map(function (patch) {
+    return JSON.stringify(patch);
+  });
+};
+
 export default Form;

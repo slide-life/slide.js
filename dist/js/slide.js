@@ -31670,6 +31670,12 @@ Form.prototype.getPatchedUserData = function () {
   return patch;
 };
 
+Form.prototype.getStringifiedPatchedUserData = function () {
+  return this.getPatchedUserData().map(function (patch) {
+    return JSON.stringify(patch);
+  });
+};
+
 exports["default"] = Form;
 },{"./block":4}],8:[function(require,module,exports){
 "use strict";
@@ -31694,14 +31700,14 @@ User.serializeProfile = function(patch) {
     prepped[k.replace(/\./g, '/')] = JSON.stringify(patch[k]);
   }
   return prepped;
-}
+};
 User.deserializeProfile = function(patch) {
   var prepped = {};
   for( var k in patch ) {
     prepped[k.replace(/\//g, '.')] = JSON.parse(patch[k]);
   }
   return prepped;
-}
+};
 
 User.prompt = function(cb) {
   var user = new this();
