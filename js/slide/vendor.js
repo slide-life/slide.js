@@ -78,7 +78,7 @@ Vendor.prototype.register = function (cb) {
       checksum: this.checksum
     },
     success: function (v) {
-      this.id = v.id;
+      self.id = v.id;
       cb && cb(self);
     }
   });
@@ -109,6 +109,24 @@ Vendor.prototype.loadForms = function(cb) {
     data: { checksum: this.checksum },
     success: function(forms) {
       cb(forms);
+    }
+  });
+};
+
+Vendor.prototype.getProfile = function(cb) {
+  api.get('/vendors/' + this.id + '/profile', {
+    data: { checksum: this.checksum },
+    success: function(profile) {
+      cb(profile);
+    }
+  });
+};
+
+Vendor.prototype.getUsers = function(cb) {
+  api.get('/vendors/' + this.id + '/vendor_users', {
+    data: { checksum: this.checksum },
+    success: function(users) {
+      cb(users);
     }
   });
 };

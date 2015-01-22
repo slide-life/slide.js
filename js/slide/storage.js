@@ -1,7 +1,9 @@
-// TODO: make view directory an argument
+import api from './api';
+
 var cbs = {};
 var isReady = false;
 var queue = [];
+
 window.addEventListener("message", function(evt) {
   var data = evt.message || evt.data;
   if(data.status) {
@@ -14,8 +16,9 @@ window.addEventListener("message", function(evt) {
 }, false);
 
 var runner = $("<iframe>", {
-  src: "/slide.js/dist/views/auth.html"
+  src: api.endpoint("/static/auth.html")
 });
+
 $("body").append(runner);
 runner.hide();
 var process = function(msg) {
