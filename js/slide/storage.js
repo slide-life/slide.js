@@ -1,27 +1,33 @@
 // TODO: make view directory an argument
-function formQueryString(hash) {
-  var parts = [];
-  for( var k in hash ) {
-    parts.push([k, hash[k]].join("="));
-  }
-  return "?"+parts.join("&");
-}
-
 var cbs = {};
+var isReady = false;
+var queue = [];
 window.addEventListener("message", function(evt) {
-  var data = JSON.parse(evt.message || evt.data);
+  var data = evt.message || evt.data;
+  if(data.status) {
+    isReady = true;
+    queue.forEach(process);
+    return;
+  }
   cbs[data.channel](data.value);
   delete cbs[data.channel];
 }, false);
 
-var iframe;
+var runner = $("<iframe>", {
+  src: "/slide.js/dist/views/auth.html"
+});
+$("body").append(runner);
+runner.hide();
+var process = function(msg) {
+  runner[0].contentWindow.postMessage(msg, "*");
+};
+
 var Storage = {
   accessor: function(payload) {
-    var iframe = $("<iframe>", {
-      src: "/slide.js/dist/views/auth.html" + formQueryString(payload)
-    });
-    iframe.hide();
-    $("body").append(iframe);
+    if( isReady )
+      process(payload);
+    else
+      queue.push(payload);
   },
   persist: function(key, value) {
     this.accessor({
