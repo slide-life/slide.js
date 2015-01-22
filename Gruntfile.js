@@ -26,7 +26,8 @@ module.exports = function (grunt) {
 
     exec: {
       bundle: 'cd bower_components/forge; npm run bundle',
-      copyFonts: 'mkdir dist; cp -R img dist; cp -R fonts dist'
+      copyFonts: 'mkdir dist; cp -R views dist; cp -R img dist; cp -R fonts dist',
+      copy: 'cp -R views/auth.html dist/views/auth.html'
     },
 
     concat: {

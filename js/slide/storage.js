@@ -16,7 +16,7 @@ window.addEventListener("message", function(evt) {
 }, false);
 
 var runner = $("<iframe>", {
-  src: api.endpoint("/static/auth.html")
+  src: 'bower_components/slide.js/dist/views/auth.html'
 });
 
 $("body").append(runner);
