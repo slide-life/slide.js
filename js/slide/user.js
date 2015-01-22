@@ -1,4 +1,5 @@
-import api from './api';
+import API from './api';
+import Crypto from './crypto';
 import Storage from './storage';
 
 var User = function(number, pub, priv, key) {
@@ -36,7 +37,7 @@ User.prompt = function(cb) {
   form.submit(function(evt) {
     evt.preventDefault();
     var number = $(this).find('[type=text]').val();
-    api.get('/users/' + number + '/public_key', {
+    API.get('/users/' + number + '/public_key', {
       success: function(resp) {
         var key = resp.public_key;
         user.number = number;
@@ -65,10 +66,10 @@ User.prototype.persist = function() {
 
 User.prototype.loadRelationships = function(success) {
   var self = this;
-  api.get('/users/' + this.number + '/vendor_users', {
+  API.get('/users/' + this.number + '/vendor_users', {
     success: function (encryptedUuids) {
       var uuids = encryptedUuids.map(function(encryptedUuid) {
-        return Slide.crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
+        return Crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
       });
       var vendorUsers = uuids.map(function(uuid) {
         return Slide.VendorUser.new(uuid);
@@ -78,8 +79,8 @@ User.prototype.loadRelationships = function(success) {
   });
 };
 
-User.load = function(fail, success) {
-  Storage.access("user", function(user) {
+User.loadFromStorage = function (success, fail) {
+  Storage.access('user', function(user) {
     if( Object.keys(user).length > 0 ) {
       user = User.fromObject(user);
       user.loadRelationships(function(relationships) {
@@ -92,19 +93,25 @@ User.load = function(fail, success) {
   });
 };
 
+User.load = function(number, cb) {
+  this.loadFromStorage(cb, function () {
+    this.register(number, cb);
+  });
+};
+
 User.register = function(number, cb) {
   var keys;
   var user = new User();
-  Slide.crypto.generateKeys(function(k) {
-    keys = Slide.crypto.packKeys(k);
+  Crypto.generateKeys(function(k) {
+    keys = Crypto.packKeys(k);
   });
-  var symmetricKey = Slide.crypto.AES.generateKey();
-  var key = Slide.crypto.encryptStringWithPackedKey(symmetricKey, keys.publicKey);
+  var symmetricKey = Crypto.AES.generateKey();
+  var key = Crypto.encryptStringWithPackedKey(symmetricKey, keys.publicKey);
   user.symmetricKey = symmetricKey;
   user.publicKey = keys.publicKey;
   user.privateKey = keys.privateKey;
   user.number = number;
-  api.post('/users', {
+  API.post('/users', {
     data: { key: key, public_key: keys.publicKey, user: number },
     success: function (u) {
       user.id = u.id;
@@ -114,22 +121,22 @@ User.register = function(number, cb) {
 };
 
 User.prototype.decryptData = function(data) {
-  return Slide.crypto.AES.decryptData(data, this.symmetricKey);
+  return Crypto.AES.decryptData(data, this.symmetricKey);
 };
 User.prototype.decrypt = function(data) {
-  return Slide.crypto.AES.decrypt(data, this.symmetricKey);
+  return Crypto.AES.decrypt(data, this.symmetricKey);
 };
 
 User.prototype.encryptData = function(data) {
-  return Slide.crypto.AES.encryptData(data, this.symmetricKey);
+  return Crypto.AES.encryptData(data, this.symmetricKey);
 };
 User.prototype.encrypt = function(data) {
-  return Slide.crypto.AES.encrypt(data, this.symmetricKey);
+  return Crypto.AES.encrypt(data, this.symmetricKey);
 };
 
 User.prototype.getProfile = function(cb) {
   var self = this;
-  api.get('/users/' + this.number + '/profile', {
+  API.get('/users/' + this.number + '/profile', {
     success: function(data) {
       cb(self.decryptData(data));
     }
@@ -138,7 +145,7 @@ User.prototype.getProfile = function(cb) {
 
 User.prototype.patchProfile = function(patch, cb) {
   var self = this;
-  api.patch('/users/' + this.number + '/profile', {
+  API.patch('/users/' + this.number + '/profile', {
     data: { patch: this.encryptData(patch) },
     success: function (user) {
       cb && cb(self.decryptData(user.profile));
@@ -147,7 +154,7 @@ User.prototype.patchProfile = function(patch, cb) {
 };
 
 User.prototype.listen = function(cb) {
-  var socket = api.socket('/users/' + this.number + '/listen');
+  var socket = API.socket('/users/' + this.number + '/listen');
   var self = this;
   socket.onmessage = function (event) {
     var message = JSON.parse(event.data);
@@ -155,7 +162,7 @@ User.prototype.listen = function(cb) {
       cb(message.payload.blocks, message.payload.conversation);
     } else {
       var data = message.payload.fields;
-      cb(Slide.crypto.AES.decryptData(data, self.symmetricKey));
+      cb(Crypto.AES.decryptData(data, self.symmetricKey));
     }
   };
 };

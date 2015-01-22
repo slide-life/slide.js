@@ -1,4 +1,4 @@
-import api from './api';
+import API from './api';
 
 var Block = {
   _inherits: function (field) {
@@ -141,7 +141,7 @@ var Block = {
     if (Slide.CACHED_BLOCKS[path.organization]) {
       cb(Slide.CACHED_BLOCKS[path.organization]);
     } else {
-      api.get('/blocks', {
+      API.get('/blocks', {
         data: { organization: path.organization },
         success: function (block) {
           Slide.CACHED_BLOCKS[path.organization] = block;

@@ -1,4 +1,4 @@
-import api from './api';
+import API from './api';
 
 var cbs = {};
 var isReady = false;

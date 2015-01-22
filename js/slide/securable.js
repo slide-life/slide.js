@@ -1,3 +1,5 @@
+import Crypto from './crypto';
+
 var Securable = function(pub, priv, key) {
   this.loadWithKeys(pub, priv, key);
 };
@@ -9,25 +11,25 @@ Securable.prototype.loadWithKeys = function(pub, priv, key) {
 };
 
 Securable.prototype.generate = function() {
-  Slide.crypto.generateKeys(function(k) {
+  Crypto.generateKeys(function(k) {
     this.publicKey = k.publicKey;
     this.privateKey = k.privateKey;
-    this.symmetricKey = Slide.crypto.AES.generateKey();
+    this.symmetricKey = Crypto.AES.generateKey();
   });
 };
 
 Securable.prototype.encryptedSymKey = function() {
-  return Slide.crypto.encryptStringWithPackedKey(this.symmetricKey, this.publicKey);
+  return Crypto.encryptStringWithPackedKey(this.symmetricKey, this.publicKey);
 };
 
 Securable.prototype.checksum = function() {
-  return Slide.crypto.encryptStringWithPackedKey('', this.symmetricKey);
+  return Crypto.encryptStringWithPackedKey('', this.symmetricKey);
 };
 
 Securable.prototype.decrypt = function(data) {
-  return Slide.crypto.AES.decryptData(data, this.symmetricKey);
+  return Crypto.AES.decryptData(data, this.symmetricKey);
 };
 
 Securable.prototype.encrypt = function(data) {
-  return Slide.crypto.AES.encryptData(data, this.symmetricKey);
+  return Crypto.AES.encryptData(data, this.symmetricKey);
 };

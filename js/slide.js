@@ -5,14 +5,13 @@ import User from './slide/user';
 import Block from './slide/block';
 import Vendor from './slide/vendor';
 import Form from './slide/form';
-import VendorForm from './slide/vendor_form';
-import VendorUser from './slide/vendor_user';
+import VendorForm from './slide/vendor-form';
+import VendorUser from './slide/vendor-user';
 
 var Slide = {
   DEFAULT_ORGANIZATION: 'slide.life',
   CACHED_BLOCKS: {},
 
-  crypto: new Crypto(),
   Actor: Actor,
   Conversation: Conversation,
   User: User,

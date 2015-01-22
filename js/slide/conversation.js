@@ -1,10 +1,11 @@
-import api from './api';
+import API from './api';
+import Crypto from './crypto';
 
 var Conversation = function(upstream, downstream, cb, sym) {
-  var key = sym || Slide.crypto.AES.generateKey();
+  var key = sym || Crypto.AES.generateKey();
   var obj = {
     symmetricKey: key,
-    key: Slide.crypto.encryptStringWithPackedKey(key, downstream.key),
+    key: Crypto.encryptStringWithPackedKey(key, downstream.key),
     upstream_type: upstream.type,
     downstream_type: downstream.type
   };
@@ -35,7 +36,7 @@ Conversation.FromObject = function(obj, cb) {
     downstream: downstream_pack
   };
 
-  api.post('/conversations', {
+  API.post('/conversations', {
     data: payload,
     success: function (conversation) {
       self.id = conversation.id;
@@ -47,29 +48,29 @@ Conversation.FromObject = function(obj, cb) {
 Conversation.FromObject.prototype = Conversation.prototype;
 
 Conversation.prototype.request = function(blocks, cb) {
-  api.post('/conversations/' + this.id + '/request_content', {
+  API.post('/conversations/' + this.id + '/request_content', {
     data: { blocks: blocks },
     success: cb
   });
 };
 
 Conversation.prototype.deposit = function (fields) {
-  api.post('/conversations/' + this.id + '/deposit_content', {
-    data: { fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey) }
+  API.post('/conversations/' + this.id + '/deposit_content', {
+    data: { fields: Crypto.AES.encryptData(fields, this.symmetricKey) }
   });
 };
 
 Conversation.prototype.respond = function(fields) {
-  api.put('/conversations/' + this.id, {
-    data: { fields: Slide.crypto.AES.encryptData(fields, this.symmetricKey) }
+  API.put('/conversations/' + this.id, {
+    data: { fields: Crypto.AES.encryptData(fields, this.symmetricKey) }
   });
 };
 
 Conversation.prototype.submit = function(uuid, fields) {
-  var enc = Slide.crypto.AES.encryptData(fields, this.symmetricKey);
+  var enc = Crypto.AES.encryptData(fields, this.symmetricKey);
   var payload = {};
   payload[uuid] = enc;
-  api.put('/conversations/' + this.id, {
+  API.put('/conversations/' + this.id, {
     data: { fields: payload, patch: payload }
   });
 };

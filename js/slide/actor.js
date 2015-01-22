@@ -1,10 +1,11 @@
-import api from './api';
+import API from './api';
+import Crypto from './crypto';
 
 function Actor(name) {
   var self = this;
   if (name) { this.name = name; }
-  Slide.crypto.generateKeys(function(keys) {
-    keys = Slide.crypto.packKeys(keys);
+  Crypto.generateKeys(function(keys) {
+    keys = Crypto.packKeys(keys);
     self.publicKey = keys.publicKey;
     self.privateKey = keys.privateKey;
   });
@@ -26,7 +27,7 @@ Actor.prototype.openRequest = function(blocks, downstream, onMessage) {
 };
 
 Actor.prototype.initialize = function(cb) {
-  api.post('/actors', {
+  API.post('/actors', {
     data: { key: this.publicKey },
     success: cb.bind(this)
   });
@@ -58,7 +59,7 @@ Actor.prototype.getDevice = function() {
 };
 
 Actor.prototype.listen = function(cb) {
-  var socket = api.socket('/actors/' + this.id + '/listen');
+  var socket = API.socket('/actors/' + this.id + '/listen');
   var self = this;
   socket.onmessage = function (event) {
     var message = JSON.parse(event.data);
@@ -67,7 +68,7 @@ Actor.prototype.listen = function(cb) {
     } else {
       var data = message.payload.fields;
       console.log('dec', self.key);
-      cb(Slide.crypto.AES.decryptData(data, self.key));
+      cb(Crypto.AES.decryptData(data, self.key));
     }
   };
 };

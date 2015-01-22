@@ -1,4 +1,4 @@
-import api from './api';
+import API from './api';
 
 var VendorForm = function(name, fields, vendorId) {
   this.name = name;
@@ -7,7 +7,7 @@ var VendorForm = function(name, fields, vendorId) {
 };
 
 VendorForm.get = function(vendor, id, cb) {
-  api.get('/vendors/'+vendor.id+'/vendor_forms/' + id, {
+  API.get('/vendors/'+vendor.id+'/vendor_forms/' + id, {
     data: { checksum: vendor.checksum },
     success: function(vendor) {
       cb(VendorForm.fromObject(vendor));

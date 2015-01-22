@@ -1,4 +1,5 @@
-import api from './api';
+import API from './api';
+import Crypto from './crypto';
 import Storage from './storage';
 import User from './user';
 
@@ -12,7 +13,7 @@ VendorUser.prototype.fromObject = function(obj) {
 
 VendorUser.prototype.load = function(cb) {
   var self = this;
-  api.get('/vendor_users/' + this.uuid,
+  API.get('/vendor_users/' + this.uuid,
     { success: function(vendor) {
       self.fromObject(vendor);
       cb(self);
@@ -21,7 +22,7 @@ VendorUser.prototype.load = function(cb) {
 
 VendorUser.prototype.getVendorKey = function(privateKey) {
   console.log(this);
-  return Slide.crypto.decryptStringWithPackedKey(this.vendorKey, privateKey);
+  return Crypto.decryptStringWithPackedKey(this.vendorKey, privateKey);
 };
 
 VendorUser.load = function(fail, success) {
@@ -40,18 +41,18 @@ VendorUser.persist = function(vendorUser) {
 
 VendorUser.createRelationship = function(user, vendor, cb) {
   var keys;
-  Slide.crypto.generateKeys(function(k) {
+  Crypto.generateKeys(function(k) {
     keys = k;
   });
 
-  var key = Slide.crypto.AES.generateKey();
-  var userKey = Slide.crypto.encryptStringWithPackedKey(key, user.publicKey);
-  var vendorKey = Slide.crypto.encryptStringWithPackedKey(key, vendor.publicKey);
-  var checksum = Slide.crypto.encryptStringWithPackedKey('', user.publicKey);
+  var key = Crypto.AES.generateKey();
+  var userKey = Crypto.encryptStringWithPackedKey(key, user.publicKey);
+  var vendorKey = Crypto.encryptStringWithPackedKey(key, vendor.publicKey);
+  var checksum = Crypto.encryptStringWithPackedKey('', user.publicKey);
 
-  api.post('/vendors/'+vendor.id+'/vendor_users', {
+  API.post('/vendors/'+vendor.id+'/vendor_users', {
     data: {
-      key: userKey, 
+      key: userKey,
       public_key: user.publicKey,
       checksum: checksum,
       vendor_key: vendorKey
@@ -70,7 +71,7 @@ VendorUser.createRelationship = function(user, vendor, cb) {
 };
 
 VendorUser.prototype.loadVendorForms = function(cb) {
-  api.get('/vendor_users/' + this.uuid + '/vendor_forms', {
+  API.get('/vendor_users/' + this.uuid + '/vendor_forms', {
     success: function(vendorForms) {
       var vendorFormHash = {};
       vendorForms.forEach(function(vf) {
