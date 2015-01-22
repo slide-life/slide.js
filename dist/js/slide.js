@@ -32055,21 +32055,23 @@ var VendorUser = function(uuid) {
   this.uuid = uuid;
 };
 
-VendorUser.prototype.fromObject = function(obj) {
+VendorUser.prototype.fromObject = function(obj, user) {
   this.name = obj.name;
   this.description = obj.description;
   this.formFields = obj.formFields;
   this.vendor = obj.vendor;
-  this.checksum = obj.checksum || Slide.crypto.encryptStringWithPackedKey('', obj.symmetricKey);
   this.privateKey = obj.privateKey;
+  this.publicKey = user.publicKey;
+  this.user = user;
+  this.checksum = obj.checksum || Slide.crypto.encryptStringWithPackedKey('', this.publicKey);
   this.symmetricKey = obj.symmetricKey;
 };
 
-VendorUser.prototype.load = function(cb) {
+VendorUser.prototype.load = function(user, cb) {
   var self = this;
   api.get('/vendor_users/' + this.uuid,
     { success: function(vendor) {
-      self.fromObject(vendor);
+      self.fromObject(vendor, user);
       cb(self);
     }});
 };
