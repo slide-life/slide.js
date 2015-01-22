@@ -30936,7 +30936,18 @@ var Block = {
     return inheritance[inheritance.length - 1] === ':';
   },
 
-  _resolve: function (hierarchy, block) {
+  _safeResolveForIdentifier: function (identifier, cb) {
+    Block._safeResolve(Block.getPathForIdentifier(identifier), cb);
+  },
+
+  _safeResolve: function (path, cb) {
+    Block._retrieveBlock(path.organization, function (inheritanceBlock) {
+      Block._resolve(path, inheritanceBlock, cb);
+    });
+  },
+
+  _resolve: function (path, block, cb) {
+    var hierarchy = path.hierarchy;
     var remaining_path = hierarchy.slice(0);
     var field = block.schema;
     while (remaining_path[0] in field) {
@@ -30945,73 +30956,73 @@ var Block = {
     }
 
     if (remaining_path.length === 0) {
-      return hierarchy;
+      cb(hierarchy, block);
     }
 
-    var ret = '';
     Block._inherits(field).forEach(function (inheritance) {
-      var result;
-      if (! Block._isRoot(inheritance)) {
-        result = Block._resolve(([inheritance].concat(remaining_path)).join('.'), block);
+      var inheritanceIdentifier;
+      if (Block._isRoot(inheritance)) {
+        inheritanceIdentifier = inheritance + remaining_path.join('.');
       } else {
-        result = Block._resolve(inheritance + remaining_path.join('.'), block);
+        inheritanceIdentifier = [inheritance].concat(remaining_path).join('.');
       }
-      if (result) { ret = result; }
+
+      Block._safeResolveForIdentifier(inheritanceIdentifier, cb);
     });
-    if (ret !== '') { return ret; }
 
     Block._components(field).filter(function (component) {
       return Block._componentName(component) === remaining_path[0];
     }).forEach(function (component) {
-      ret = Block._resolve([component].concat(remaining_path.slice(1)).join('.'), block);
+      var inheritanceIdentifier =
+        [component].concat(remaining_path.slice(1)).join('.');
+      Block._safeResolveForIdentifier(inheritanceIdentifier, cb);
     });
-
-    return ret;
   },
 
-  _resolveField: function (hierarchy, block) {
-    return Block._resolve(hierarchy, block).reduce(function (obj, key) {
-      return obj[key];
-    }, block.schema);
+  _resolveField: function (path, block, cb) {
+    Block._safeResolve(path, function (resultHierarchy, resultBlock) {
+      cb(resultHierarchy.reduce(function (obj, key) { return obj[key]; },
+        resultBlock.schema));
+    });
   },
 
   _retrieveField: function (path, block, cb) {
-    var field = Block._resolveField(path.hierarchy, block);
+    Block._resolveField(path, block, function (field) {
+      var deferreds = [];
 
-    var deferreds = [];
+      if (field._components) {
+        field._components.map(Block.getPathForIdentifier).forEach(function (componentPath) {
+          var deferred = new $.Deferred();
+          deferreds.push(deferred);
 
-    if (field._components) {
-      field._components.map(Block.getPathForIdentifier).forEach(function (componentPath) {
+          Block._retrieveFieldFromPath(componentPath, function (f) {
+            field[componentPath.hierarchy.pop()] = f;
+            deferred.resolve();
+          });
+        });
+      }
+
+      if (field._inherits) {
+        var componentPath = Block.getPathForIdentifier(field._inherits);
+        field._inherits = componentPath.identifier;
+
         var deferred = new $.Deferred();
         deferreds.push(deferred);
 
         Block._retrieveFieldFromPath(componentPath, function (f) {
-          field[componentPath.hierarchy.pop()] = f;
+          field = $.extend(f, field);
+
+          f._assigns = f._assigns || [];
+          f._assigns.push(path.identifier);
+
           deferred.resolve();
         });
+      }
+
+      $.when.apply($, deferreds).done(function () {
+        delete field._components;
+        cb(field);
       });
-    }
-
-    if (field._inherits) {
-      var componentPath = Block.getPathForIdentifier(field._inherits);
-      field._inherits = componentPath.identifier;
-
-      var deferred = new $.Deferred();
-      deferreds.push(deferred);
-
-      Block._retrieveFieldFromPath(componentPath, function (f) {
-        field = $.extend(f, field);
-
-        f._assigns = f._assigns || [];
-        f._assigns.push(path.identifier);
-
-        deferred.resolve();
-      });
-    }
-
-    $.when.apply($, deferreds).done(function () {
-      delete field._components;
-      cb(field);
     });
   },
 
@@ -31032,6 +31043,7 @@ var Block = {
       api.get('/blocks', {
         data: { organization: path.organization },
         success: function (block) {
+          Slide.CACHED_BLOCKS[path.organization] = block;
           cb(block);
         }
       });
