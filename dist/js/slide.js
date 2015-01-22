@@ -30980,7 +30980,7 @@ var Block = {
   },
 
   _resolveField: function (path, block, cb) {
-    Block._safeResolve(path, function (resultHierarchy, resultBlock) {
+    Block._resolve(path, block, function (resultHierarchy, resultBlock) {
       cb(resultHierarchy.reduce(function (obj, key) { return obj[key]; },
         resultBlock.schema));
     });
