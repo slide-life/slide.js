@@ -47,6 +47,19 @@ var Slide = {
     return this._modal;
   },
 
+  prepareModalWithPassphrase: function (title, cb) {
+    var $modal = this.prepareModal();
+    var $label = $('<label></label>', { for: 'passphrase' }).text('Enter your passphrase:');
+    var $passphrase = $('<input>', { id: 'passphrase' });
+    var $submit = $('<button></button>').text('Enter slide');
+    var $wrapper = $('<p></p>', { class: 'passphrase-wrapper' }).append($label, $passphrase, $submit);
+    $modal.find('.slide-modal-body').html($wrapper);
+    $submit.on('click', function () {
+      cb($passphrase.val());
+    });
+    return $modal;
+  },
+
   insertVendorForm: function(form, vendor, onClick) {
     var modal = this.prepareModal('Your Forms');
     var list = modal.find('.form-list');

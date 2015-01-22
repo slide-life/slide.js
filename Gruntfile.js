@@ -26,7 +26,7 @@ module.exports = function (grunt) {
 
     exec: {
       bundle: 'cd bower_components/forge; npm run bundle',
-      copyFonts: 'mkdir dist; cp -R img dist; cp -R fonts dist'
+      copyFonts: 'mkdir dist; cp -R views dist; cp -R img dist; cp -R fonts dist'
     },
 
     concat: {
@@ -45,11 +45,6 @@ module.exports = function (grunt) {
       jquery: {
         src: ['bower_components/jquery/dist/jquery.min.js', 'dist/js/slide.js'],
         dest: 'dist/js/slide.jquery.js'
-      },
-
-      auth: {
-        src: ['views/auth.html'],
-        dest: 'dist/views/auth.html'
       }
     },
 
