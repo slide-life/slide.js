@@ -42,7 +42,7 @@ var Block = {
   },
 
   _safeResolve: function (path, cb) {
-    Block._retrieveBlock(path.organization, function (inheritanceBlock) {
+    Block._retrieveBlock(path, function (inheritanceBlock) {
       Block._resolve(path, inheritanceBlock, cb);
     });
   },
@@ -111,7 +111,7 @@ var Block = {
         deferreds.push(deferred);
 
         Block._retrieveFieldFromPath(componentPath, function (f) {
-          field = $.extend(f, field);
+          field = $.extend({}, f, field);
 
           f._assigns = f._assigns || [];
           f._assigns.push(path.identifier);
