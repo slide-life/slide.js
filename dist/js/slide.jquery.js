@@ -30695,17 +30695,21 @@ var Slide = {
     return this._modal;
   },
 
-  prepareModalWithPassphrase: function (title, cb) {
-    var $modal = this.prepareModal();
-    var $label = $('<label></label>', { for: 'passphrase' }).text('Enter your passphrase:');
+  prepareModalWithPassphrase: function (title, options, cb) {
+    this.prepareModal();
+    this.presentInputPromptInModal(options, cb);
+    return this._modal;
+  },
+
+  presentInputPromptInModal: function (options, cb) {
+    var $label = $('<label></label>', { for: 'passphrase' }).text(options.promptText);
     var $passphrase = $('<input>', { id: 'passphrase' });
-    var $submit = $('<button></button>').text('Enter slide');
+    var $submit = $('<button></button>').text(options.submitText);
     var $wrapper = $('<p></p>', { class: 'passphrase-wrapper' }).append($label, $passphrase, $submit);
-    $modal.find('.slide-modal-body').html($wrapper);
+    this._modal.find('.slide-modal-body').html($wrapper);
     $submit.on('click', function () {
       cb($passphrase.val());
     });
-    return $modal;
   },
 
   insertVendorForm: function(form, vendor, onClick) {
@@ -32028,7 +32032,6 @@ Vendor.prototype.register = function (cb) {
       checksum: this.checksum
     },
     success: function (v) {
-      console.log(v);
       self.id = v.id;
       cb && cb(self);
     }
