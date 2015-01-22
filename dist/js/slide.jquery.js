@@ -30936,6 +30936,10 @@ var Block = {
     return Block._separatePath(Block._pathOf(field)).pop();
   },
 
+  _isRoot: function (inheritance) {
+    return inheritance[inheritance.length - 1] === ':';
+  },
+
   _resolve: function (hierarchy, block) {
     var remaining_path = hierarchy.slice(0);
     var field = block.schema;
@@ -30950,7 +30954,12 @@ var Block = {
 
     var ret = '';
     Block._inherits(field).forEach(function (inheritance) {
-      var result = Block._resolve(([inheritance].concat(remaining_path)).join('.'), block);
+      var result;
+      if (! Block._isRoot(inheritance)) {
+        result = Block._resolve(([inheritance].concat(remaining_path)).join('.'), block);
+      } else {
+        result = Block._resolve(inheritance + remaining_path.join('.'), block);
+      }
       if (result) { ret = result; }
     });
     if (ret !== '') { return ret; }
