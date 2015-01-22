@@ -1,5 +1,6 @@
 import api from './api';
 import User from './user';
+import Storage from './storage';
 
 var Vendor = function (name, chk, id, keys) {
   if (keys) {
@@ -23,7 +24,7 @@ Vendor.prototype.persist = function () {
     checksum: this.checksum,
     id: this.id
   };
-  window.localStorage.vendor = JSON.stringify(obj);
+  Storage.persist("vendor", obj);
 };
 
 Vendor.fromObject = function (obj) {
@@ -39,11 +40,13 @@ Vendor.fromObject = function (obj) {
 };
 
 Vendor.load = function (fail, success) {
-  if( window.localStorage.vendor ) {
-    success(this.fromObject(JSON.parse(window.localStorage.vendor)));
-  } else {
-    fail(success);
-  }
+  Storage.access("vendor", function(vendor) {
+    if( Object.keys(vendor).length > 0 ) {
+      success(Vendor.fromObject(vendor));
+    } else {
+      fail(success);
+    }
+  });
 };
 
 Vendor.invite = function (name, cb) {

@@ -1,29 +1,41 @@
 import api from './api';
+import Storage from './storage';
 import User from './user';
 
 var VendorUser = function(uuid) {
   this.uuid = uuid;
 };
 
-VendorUser.prototype.fromObject = function(obj, user) {
-  this.name = obj.name;
-  this.description = obj.description;
-  this.formFields = obj.formFields;
-  this.vendor = obj.vendor;
-  this.privateKey = obj.privateKey;
-  this.publicKey = user.publicKey;
-  this.user = user;
-  this.checksum = obj.checksum || Slide.crypto.encryptStringWithPackedKey('', this.publicKey);
-  this.symmetricKey = obj.symmetricKey;
+VendorUser.prototype.fromObject = function(obj) {
+  $.extend(this, obj);
 };
 
-VendorUser.prototype.load = function(user, cb) {
+VendorUser.prototype.load = function(cb) {
   var self = this;
   api.get('/vendor_users/' + this.uuid,
     { success: function(vendor) {
-      self.fromObject(vendor, user);
+      self.fromObject(vendor);
       cb(self);
     }});
+};
+
+VendorUser.prototype.getVendorKey = function(privateKey) {
+  console.log(this);
+  return Slide.crypto.decryptStringWithPackedKey(this.vendorKey, privateKey);
+};
+
+VendorUser.load = function(fail, success) {
+  Storage.access("vendor-user", function(vendorUser) {
+    if( Object.keys(vendorUser).length > 0 ) {
+      vendorUser = new VendorUser(vendorUser.uuid).fromObject(vendorUser);
+      success(vendorUser);
+    } else {
+      fail(success);
+    }
+  });
+};
+VendorUser.persist = function(vendorUser) {
+  Storage.persist("vendor-user", vendorUser);
 };
 
 VendorUser.createRelationship = function(user, vendor, cb) {
@@ -31,10 +43,12 @@ VendorUser.createRelationship = function(user, vendor, cb) {
   Slide.crypto.generateKeys(function(k) {
     keys = k;
   });
+
   var key = Slide.crypto.AES.generateKey();
   var userKey = Slide.crypto.encryptStringWithPackedKey(key, user.publicKey);
   var vendorKey = Slide.crypto.encryptStringWithPackedKey(key, vendor.publicKey);
   var checksum = Slide.crypto.encryptStringWithPackedKey('', user.publicKey);
+
   api.post('/vendors/'+vendor.id+'/vendor_users', {
     data: {
       key: userKey, 
@@ -42,11 +56,14 @@ VendorUser.createRelationship = function(user, vendor, cb) {
       checksum: checksum,
       vendor_key: vendorKey
     },
-    success: function(vendor) {
-      vendor.checksum = checksum;
-      vendor.symmtricKey = key;
-      var vendorUser = new VendorUser(vendor.uuid);
-      vendorUser.fromObject(vendor);
+    success: function(resp) {
+      resp.checksum = checksum;
+      resp.privateKey = user.privateKey;
+      resp.generatedKey = key;
+
+      var vendorUser = new VendorUser(resp.uuid);
+      vendorUser.fromObject(resp);
+      VendorUser.persist(vendorUser);
       cb && cb(vendorUser);
     }
   });

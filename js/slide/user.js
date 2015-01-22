@@ -60,7 +60,7 @@ User.prototype.persist = function() {
     privateKey: this.privateKey,
     symmetricKey: this.symmetricKey
   };
-  Storage.persist("user", JSON.stringify(obj));
+  Storage.persist("user", obj);
 };
 
 User.prototype.loadRelationships = function(success) {
@@ -80,8 +80,8 @@ User.prototype.loadRelationships = function(success) {
 
 User.load = function(fail, success) {
   Storage.access("user", function(user) {
-    if( user ) {
-      user = User.fromObject(JSON.parse(user));
+    if( Object.keys(user).length > 0 ) {
+      user = User.fromObject(user);
       user.loadRelationships(function(relationships) {
         user.relationships = relationships;
         success(user);

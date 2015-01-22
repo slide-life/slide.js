@@ -31704,29 +31704,35 @@ exports["default"] = Form;
 },{"./block":4}],8:[function(require,module,exports){
 "use strict";
 // TODO: make view directory an argument
-function formQueryString(hash) {
-  var parts = [];
-  for( var k in hash ) {
-    parts.push([k, hash[k]].join("="));
-  }
-  return "?"+parts.join("&");
-}
-
 var cbs = {};
+var isReady = false;
+var queue = [];
 window.addEventListener("message", function(evt) {
-  var data = JSON.parse(evt.message || evt.data);
+  var data = evt.message || evt.data;
+  if(data.status) {
+    isReady = true;
+    queue.forEach(process);
+    return;
+  }
   cbs[data.channel](data.value);
   delete cbs[data.channel];
 }, false);
 
-var iframe;
+var runner = $("<iframe>", {
+  src: "/slide.js/dist/views/auth.html"
+});
+$("body").append(runner);
+runner.hide();
+var process = function(msg) {
+  runner[0].contentWindow.postMessage(msg, "*");
+};
+
 var Storage = {
   accessor: function(payload) {
-    var iframe = $("<iframe>", {
-      src: "/slide.js/dist/views/auth.html" + formQueryString(payload)
-    });
-    iframe.hide();
-    $("body").append(iframe);
+    if( isReady )
+      process(payload);
+    else
+      queue.push(payload);
   },
   persist: function(key, value) {
     this.accessor({
@@ -31811,7 +31817,7 @@ User.prototype.persist = function() {
     privateKey: this.privateKey,
     symmetricKey: this.symmetricKey
   };
-  Storage.persist("user", JSON.stringify(obj));
+  Storage.persist("user", obj);
 };
 
 User.prototype.loadRelationships = function(success) {
@@ -31831,8 +31837,8 @@ User.prototype.loadRelationships = function(success) {
 
 User.load = function(fail, success) {
   Storage.access("user", function(user) {
-    if( user ) {
-      user = User.fromObject(JSON.parse(user));
+    if( Object.keys(user).length > 0 ) {
+      user = User.fromObject(user);
       user.loadRelationships(function(relationships) {
         user.relationships = relationships;
         success(user);
@@ -31924,6 +31930,7 @@ exports["default"] = User;
 "use strict";
 var api = require("./api")["default"];
 var User = require("./user")["default"];
+var Storage = require("./storage")["default"];
 
 var Vendor = function (name, chk, id, keys) {
   if (keys) {
@@ -31947,7 +31954,7 @@ Vendor.prototype.persist = function () {
     checksum: this.checksum,
     id: this.id
   };
-  window.localStorage.vendor = JSON.stringify(obj);
+  Storage.persist("vendor", obj);
 };
 
 Vendor.fromObject = function (obj) {
@@ -31963,11 +31970,13 @@ Vendor.fromObject = function (obj) {
 };
 
 Vendor.load = function (fail, success) {
-  if( window.localStorage.vendor ) {
-    success(this.fromObject(JSON.parse(window.localStorage.vendor)));
-  } else {
-    fail(success);
-  }
+  Storage.access("vendor", function(vendor) {
+    if( Object.keys(vendor).length > 0 ) {
+      success(Vendor.fromObject(vendor));
+    } else {
+      fail(success);
+    }
+  });
 };
 
 Vendor.invite = function (name, cb) {
@@ -32035,7 +32044,7 @@ Vendor.prototype.loadForms = function(cb) {
 };
 
 exports["default"] = Vendor;
-},{"./api":3,"./user":9}],11:[function(require,module,exports){
+},{"./api":3,"./storage":8,"./user":9}],11:[function(require,module,exports){
 "use strict";
 var api = require("./api")["default"];
 
@@ -32070,31 +32079,43 @@ exports["default"] = VendorForm;
 },{"./api":3}],12:[function(require,module,exports){
 "use strict";
 var api = require("./api")["default"];
+var Storage = require("./storage")["default"];
 var User = require("./user")["default"];
 
 var VendorUser = function(uuid) {
   this.uuid = uuid;
 };
 
-VendorUser.prototype.fromObject = function(obj, user) {
-  this.name = obj.name;
-  this.description = obj.description;
-  this.formFields = obj.formFields;
-  this.vendor = obj.vendor;
-  this.privateKey = obj.privateKey;
-  this.publicKey = user.publicKey;
-  this.user = user;
-  this.checksum = obj.checksum || Slide.crypto.encryptStringWithPackedKey('', this.publicKey);
-  this.symmetricKey = obj.symmetricKey;
+VendorUser.prototype.fromObject = function(obj) {
+  $.extend(this, obj);
 };
 
-VendorUser.prototype.load = function(user, cb) {
+VendorUser.prototype.load = function(cb) {
   var self = this;
   api.get('/vendor_users/' + this.uuid,
     { success: function(vendor) {
-      self.fromObject(vendor, user);
+      self.fromObject(vendor);
       cb(self);
     }});
+};
+
+VendorUser.prototype.getVendorKey = function(privateKey) {
+  console.log(this);
+  return Slide.crypto.decryptStringWithPackedKey(this.vendorKey, privateKey);
+};
+
+VendorUser.load = function(fail, success) {
+  Storage.access("vendor-user", function(vendorUser) {
+    if( Object.keys(vendorUser).length > 0 ) {
+      vendorUser = new VendorUser(vendorUser.uuid).fromObject(vendorUser);
+      success(vendorUser);
+    } else {
+      fail(success);
+    }
+  });
+};
+VendorUser.persist = function(vendorUser) {
+  Storage.persist("vendor-user", vendorUser);
 };
 
 VendorUser.createRelationship = function(user, vendor, cb) {
@@ -32102,10 +32123,12 @@ VendorUser.createRelationship = function(user, vendor, cb) {
   Slide.crypto.generateKeys(function(k) {
     keys = k;
   });
+
   var key = Slide.crypto.AES.generateKey();
   var userKey = Slide.crypto.encryptStringWithPackedKey(key, user.publicKey);
   var vendorKey = Slide.crypto.encryptStringWithPackedKey(key, vendor.publicKey);
   var checksum = Slide.crypto.encryptStringWithPackedKey('', user.publicKey);
+
   api.post('/vendors/'+vendor.id+'/vendor_users', {
     data: {
       key: userKey, 
@@ -32113,11 +32136,14 @@ VendorUser.createRelationship = function(user, vendor, cb) {
       checksum: checksum,
       vendor_key: vendorKey
     },
-    success: function(vendor) {
-      vendor.checksum = checksum;
-      vendor.symmtricKey = key;
-      var vendorUser = new VendorUser(vendor.uuid);
-      vendorUser.fromObject(vendor);
+    success: function(resp) {
+      resp.checksum = checksum;
+      resp.privateKey = user.privateKey;
+      resp.generatedKey = key;
+
+      var vendorUser = new VendorUser(resp.uuid);
+      vendorUser.fromObject(resp);
+      VendorUser.persist(vendorUser);
       cb && cb(vendorUser);
     }
   });
@@ -32139,4 +32165,4 @@ VendorUser.prototype.loadVendorForms = function(cb) {
 $.extend(VendorUser.prototype, User.prototype);
 
 exports["default"] = VendorUser;
-},{"./api":3,"./user":9}]},{},[1])
+},{"./api":3,"./storage":8,"./user":9}]},{},[1])
