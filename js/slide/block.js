@@ -11,7 +11,7 @@ var Block = {
 
   _components: function (field) {
     if ('_components' in field) {
-      return [field._components];
+      return field._components;
     } else {
       return [];
     }
