@@ -1,4 +1,5 @@
 import api from './api';
+import Storage from './storage';
 
 var User = function(number, pub, priv, key) {
   this.number = number;
@@ -59,7 +60,7 @@ User.prototype.persist = function() {
     privateKey: this.privateKey,
     symmetricKey: this.symmetricKey
   };
-  window.localStorage.user = JSON.stringify(obj);
+  Storage.persist("user", JSON.stringify(obj));
 };
 
 User.prototype.loadRelationships = function(success) {
@@ -78,15 +79,17 @@ User.prototype.loadRelationships = function(success) {
 };
 
 User.load = function(fail, success) {
-  if( window.localStorage.user ) {
-    var user = this.fromObject(JSON.parse(window.localStorage.user));
-    user.loadRelationships(function(relationships) {
-      user.relationships = relationships;
-      success(user);
-    });
-  } else {
-    fail(success);
-  }
+  Storage.access("user", function(user) {
+    if( user ) {
+      user = User.fromObject(JSON.parse(user));
+      user.loadRelationships(function(relationships) {
+        user.relationships = relationships;
+        success(user);
+      });
+    } else {
+      fail(success);
+    }
+  });
 };
 
 User.register = function(number, cb) {

@@ -30771,7 +30771,7 @@ var Slide = {
 };
 
 window.Slide = Slide;
-},{"./slide/actor":2,"./slide/block":4,"./slide/conversation":5,"./slide/crypto":6,"./slide/form":7,"./slide/user":8,"./slide/vendor":9,"./slide/vendor_form":10,"./slide/vendor_user":11}],2:[function(require,module,exports){
+},{"./slide/actor":2,"./slide/block":4,"./slide/conversation":5,"./slide/crypto":6,"./slide/form":7,"./slide/user":9,"./slide/vendor":10,"./slide/vendor_form":11,"./slide/vendor_user":12}],2:[function(require,module,exports){
 "use strict";
 var api = require("./api")["default"];
 
@@ -31686,7 +31686,54 @@ Form.prototype.getStringifiedPatchedUserData = function () {
 exports["default"] = Form;
 },{"./block":4}],8:[function(require,module,exports){
 "use strict";
+// TODO: make view directory an argument
+function formQueryString(hash) {
+  var parts = [];
+  for( var k in hash ) {
+    parts.push([k, hash[k]].join("="));
+  }
+  return "?"+parts.join("&");
+}
+
+var cbs = {};
+window.addEventListener("message", function(evt) {
+  var data = JSON.parse(evt.message || evt.data);
+  cbs[data.channel](data.value);
+  delete cbs[data.channel];
+}, false);
+
+var iframe;
+var Storage = {
+  accessor: function(payload) {
+    var iframe = $("<iframe>", {
+      src: "/slide.js/dist/views/auth.html" + formQueryString(payload)
+    });
+    iframe.hide();
+    $("body").append(iframe);
+  },
+  persist: function(key, value) {
+    this.accessor({
+      verb: "set",
+      key: key,
+      value: value
+    });
+  },
+  access: function(key, cb) {
+    var channel = Math.floor(Math.random() * 10000);
+    cbs[channel] = cb;
+    this.accessor({
+      verb: "get",
+      key: key,
+      channel: channel
+    });
+  }
+};
+
+exports["default"] = Storage;
+},{}],9:[function(require,module,exports){
+"use strict";
 var api = require("./api")["default"];
+var Storage = require("./storage")["default"];
 
 var User = function(number, pub, priv, key) {
   this.number = number;
@@ -31747,7 +31794,7 @@ User.prototype.persist = function() {
     privateKey: this.privateKey,
     symmetricKey: this.symmetricKey
   };
-  window.localStorage.user = JSON.stringify(obj);
+  Storage.persist("user", JSON.stringify(obj));
 };
 
 User.prototype.loadRelationships = function(success) {
@@ -31766,15 +31813,17 @@ User.prototype.loadRelationships = function(success) {
 };
 
 User.load = function(fail, success) {
-  if( window.localStorage.user ) {
-    var user = this.fromObject(JSON.parse(window.localStorage.user));
-    user.loadRelationships(function(relationships) {
-      user.relationships = relationships;
-      success(user);
-    });
-  } else {
-    fail(success);
-  }
+  Storage.access("user", function(user) {
+    if( user ) {
+      user = User.fromObject(JSON.parse(user));
+      user.loadRelationships(function(relationships) {
+        user.relationships = relationships;
+        success(user);
+      });
+    } else {
+      fail(success);
+    }
+  });
 };
 
 User.register = function(number, cb) {
@@ -31854,7 +31903,7 @@ User.prototype.requestPrivateKey = function(cb) {
 };
 
 exports["default"] = User;
-},{"./api":3}],9:[function(require,module,exports){
+},{"./api":3,"./storage":8}],10:[function(require,module,exports){
 "use strict";
 var api = require("./api")["default"];
 var User = require("./user")["default"];
@@ -31969,7 +32018,7 @@ Vendor.prototype.loadForms = function(cb) {
 };
 
 exports["default"] = Vendor;
-},{"./api":3,"./user":8}],10:[function(require,module,exports){
+},{"./api":3,"./user":9}],11:[function(require,module,exports){
 "use strict";
 var api = require("./api")["default"];
 
@@ -32001,7 +32050,7 @@ VendorForm.fromObject = function(obj) {
 };
 
 exports["default"] = VendorForm;
-},{"./api":3}],11:[function(require,module,exports){
+},{"./api":3}],12:[function(require,module,exports){
 "use strict";
 var api = require("./api")["default"];
 var User = require("./user")["default"];
@@ -32071,4 +32120,4 @@ VendorUser.prototype.loadVendorForms = function(cb) {
 $.extend(VendorUser.prototype, User.prototype);
 
 exports["default"] = VendorUser;
-},{"./api":3,"./user":8}]},{},[1])
+},{"./api":3,"./user":9}]},{},[1])

@@ -45,6 +45,11 @@ module.exports = function (grunt) {
       jquery: {
         src: ['bower_components/jquery/dist/jquery.min.js', 'dist/js/slide.js'],
         dest: 'dist/js/slide.jquery.js'
+      },
+
+      auth: {
+        src: ['views/auth.html'],
+        dest: 'dist/views/auth.html'
       }
     },
 
