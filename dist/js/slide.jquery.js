@@ -31523,7 +31523,7 @@ Form.prototype._parseRepresentation = function (identifier, field, card) {
 
   if (field._representation) {
     data = [field._representation.replace(/\$\{([^}]+)\}/g, function ($0, $1) {
-      if (card[identifier + '.' + $1]) {
+      if (card[identifier + '.' + $1] !== undefined) {
         return card[identifier + '.' + $1];
       } else {
         fallback = ' ';
