@@ -138,4 +138,5 @@ var Slide = {
   }
 };
 
+export default Slide;
 window.Slide = Slide;

@@ -4,7 +4,7 @@ var cbs = {};
 var isReady = false;
 var queue = [];
 
-window.addEventListener("message", function(evt) {
+$(window).on('message', function(evt) {
   var data = evt.message || evt.data;
   if(data.status) {
     isReady = true;

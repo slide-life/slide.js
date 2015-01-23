@@ -1,8 +1,7 @@
 export default {
-  var rsa = forge.pki.rsa;
   generateKeys: function (cb) {
     // This is a synchronous function, designed with a callback for the future.
-    cb(rsa.generateKeyPair({ bits: 512, e: 0x10001 }));
+    cb(forge.pki.rsa.generateKeyPair({ bits: 512, e: 0x10001 }));
   },
 
   packPublicKey: function (key) {
@@ -19,7 +18,7 @@ export default {
     };
   },
 
-  AES = {
+  AES: {
     generateCipher: function() {
       return {
         key: forge.random.getBytesSync(16),
@@ -28,12 +27,12 @@ export default {
     },
 
     _packCipher: function(cipher) {
-      return btoa(cipher.key+cipher.iv);
+      // TODO: NB! this and _unpack used to use btoa, atob
+      return cipher.key+cipher.iv;
     },
 
     _unpackCipher: function(packed) {
-      var decoded = atob(packed),
-          key = decoded.substr(0, 16),
+      var key = decoded.substr(0, 16),
           iv = decoded.substr(16);
       return {key:key,iv:iv};
     },
