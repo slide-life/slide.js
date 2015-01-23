@@ -23,6 +23,40 @@ exports = module.exports = function (Slide) {
       });
     });
 
+    describe('checksum tests', function () {
+      var vendor;
+
+      before(function (done) {
+        var vendorName = "Vendor" + Math.floor(Math.random() * 10000);
+        Slide.Vendor.invite(vendorName, function(v) {
+          v.register(function(v) {
+            vendor = v;
+            done();
+          });
+        });
+      });
+
+      describe('.getProfile()', function () {
+        it('should get profile for valid checksum', function (done) {
+          vendor.getProfile(function (profile) {
+            assert.notEqual(profile, null);
+            done();
+          });
+        });
+
+        it.skip('should not get profile for invalid checksum', function (done) {
+        });
+      });
+
+      describe('.getUsers()', function () {
+        it.skip('should display users for valid checksum', function (done) {
+        });
+
+        it.skip('should not display users for invalid checksum', function (done) {
+        });
+      });
+    });
+
   });
 };
 
