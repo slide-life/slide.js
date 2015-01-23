@@ -30644,7 +30644,7 @@ return require('js/forge');
     };
 
 }));
-;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+;;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 var Crypto = require("./slide/crypto")["default"];
 var Actor = require("./slide/actor")["default"];
@@ -30658,7 +30658,6 @@ var VendorUser = require("./slide/vendor-user")["default"];
 
 var Slide = {
   DEFAULT_ORGANIZATION: 'slide.life',
-  CACHED_BLOCKS: {},
 
   Actor: Actor,
   Conversation: Conversation,
@@ -30922,6 +30921,8 @@ exports["default"] = {
 var API = require("./api")["default"];
 
 var Block = {
+  CACHED_BLOCKS: {},
+
   _inherits: function (field) {
     if ('_inherits' in field) {
       return [field._inherits];
@@ -30958,58 +30959,68 @@ var Block = {
     return inheritance[inheritance.length - 1] === ':';
   },
 
-  _safeResolveForIdentifier: function (identifier, cb) {
-    Block._safeResolve(Block.getPathForIdentifier(identifier), cb);
+  _retrieveBlock: function (path, cb) {
+    if (Block.CACHED_BLOCKS[path.organization]) {
+      cb(Block.CACHED_BLOCKS[path.organization]);
+    } else {
+      API.get('/blocks', {
+        data: { organization: path.organization },
+        success: function (block) {
+          Block.CACHED_BLOCKS[path.organization] = block;
+          cb(block);
+        }
+      });
+    }
   },
 
-  _safeResolve: function (path, cb) {
-    Block._retrieveBlock(path, function (inheritanceBlock) {
-      Block._resolve(path, inheritanceBlock, cb);
-    });
+  _resolveForIdentifier: function (identifier, cb) {
+    Block._resolve(Block.getPathForIdentifier(identifier), cb);
   },
 
-  _resolve: function (path, block, cb) {
-    var hierarchy = path.hierarchy;
-    var remaining_path = hierarchy.slice(0);
-    var field = block.schema;
-    while (remaining_path[0] in field) {
-      field = field[remaining_path[0]];
-      remaining_path = remaining_path.slice(1);
-    }
-
-    if (remaining_path.length === 0) {
-      cb(hierarchy, block);
-    }
-
-    Block._inherits(field).forEach(function (inheritance) {
-      var inheritanceIdentifier;
-      if (Block._isRoot(inheritance)) {
-        inheritanceIdentifier = inheritance + remaining_path.join('.');
-      } else {
-        inheritanceIdentifier = [inheritance].concat(remaining_path).join('.');
+  _resolve: function (path, cb) {
+    Block._retrieveBlock(path, function (block) {
+      var hierarchy = path.hierarchy;
+      var remaining_path = hierarchy.slice(0);
+      var field = block.schema;
+      while (remaining_path[0] in field) {
+        field = field[remaining_path[0]];
+        remaining_path = remaining_path.slice(1);
       }
 
-      Block._safeResolveForIdentifier(inheritanceIdentifier, cb);
-    });
+      if (remaining_path.length === 0) {
+        cb(hierarchy, block);
+      }
 
-    Block._components(field).filter(function (component) {
-      return Block._componentName(component) === remaining_path[0];
-    }).forEach(function (component) {
-      var inheritanceIdentifier =
-        [component].concat(remaining_path.slice(1)).join('.');
-      Block._safeResolveForIdentifier(inheritanceIdentifier, cb);
+      Block._inherits(field).forEach(function (inheritance) {
+        var inheritanceIdentifier;
+        if (Block._isRoot(inheritance)) {
+          inheritanceIdentifier = inheritance + remaining_path.join('.');
+        } else {
+          inheritanceIdentifier = [inheritance].concat(remaining_path).join('.');
+        }
+
+        Block._resolveForIdentifier(inheritanceIdentifier, cb);
+      });
+
+      Block._components(field).filter(function (component) {
+        return Block._componentName(component) === remaining_path[0];
+      }).forEach(function (component) {
+        var inheritanceIdentifier =
+          [component].concat(remaining_path.slice(1)).join('.');
+        Block._resolveForIdentifier(inheritanceIdentifier, cb);
+      });
     });
   },
 
-  _resolveField: function (path, block, cb) {
-    Block._resolve(path, block, function (resultHierarchy, resultBlock) {
+  _resolveField: function (path, cb) {
+    Block._resolve(path, function (resultHierarchy, resultBlock) {
       cb(resultHierarchy.reduce(function (obj, key) { return obj[key]; },
-        resultBlock.schema));
+                                resultBlock.schema));
     });
   },
 
-  _retrieveField: function (path, block, cb) {
-    Block._resolveField(path, block, function (field) {
+  _retrieveField: function (path, cb) {
+    Block._resolveField(path, function (field) {
       var deferreds = [];
 
       if (field._components) {
@@ -31017,7 +31028,7 @@ var Block = {
           var deferred = new $.Deferred();
           deferreds.push(deferred);
 
-          Block._retrieveFieldFromPath(componentPath, function (f) {
+          Block._retrieveField(componentPath, function (f) {
             field[componentPath.hierarchy.pop()] = f;
             deferred.resolve();
           });
@@ -31025,24 +31036,20 @@ var Block = {
       }
 
       if (field._inherits) {
-        var componentPath = Block.getPathForIdentifier(field._inherits);
-        field._inherits = componentPath.identifier;
+        var inheritPath = Block.getPathForIdentifier(field._inherits);
 
         var deferred = new $.Deferred();
         deferreds.push(deferred);
 
-        Block._retrieveFieldFromPath(componentPath, function (f) {
+        Block._retrieveField(inheritPath, function (f) {
           field = $.extend({}, f, field);
-
-          f._assigns = f._assigns || [];
-          f._assigns.push(path.identifier);
-
           deferred.resolve();
         });
       }
 
       $.when.apply($, deferreds).done(function () {
         delete field._components;
+        delete field._inherits;
         cb(field);
       });
     });
@@ -31058,23 +31065,9 @@ var Block = {
     };
   },
 
-  _retrieveBlock: function (path, cb) {
-    if (Slide.CACHED_BLOCKS[path.organization]) {
-      cb(Slide.CACHED_BLOCKS[path.organization]);
-    } else {
-      API.get('/blocks', {
-        data: { organization: path.organization },
-        success: function (block) {
-          Slide.CACHED_BLOCKS[path.organization] = block;
-          cb(block);
-        }
-      });
-    }
-  },
-
   deconstructField: function (field) {
     var children = {},
-        annotations = {};
+    annotations = {};
 
     for (var key in field) {
       if (field.hasOwnProperty(key)) {
@@ -31097,23 +31090,15 @@ var Block = {
     return Block.deconstructField(field).annotations;
   },
 
-  _retrieveFieldFromPath: function (path, cb) {
-    Block._retrieveBlock(path, function (block) {
-      Block._retrieveField(path, block, function (field) {
-        cb(field);
-      });
-    });
-  },
-
   getFieldsForIdentifiers: function (identifiers, cb) {
     var fields = {},
-        deferreds = [],
-        paths = identifiers.map(Block.getPathForIdentifier);
+    deferreds = [],
+    paths = identifiers.map(Block.getPathForIdentifier);
 
-    paths.map(function (path) {
+    paths.forEach(function (path) {
       var deferred = new $.Deferred();
       deferreds.push(deferred);
-      Block._retrieveFieldFromPath(path, function (field) {
+      Block._retrieveField(path, function (field) {
         fields[path.identifier] = field;
         deferred.resolve();
       });
@@ -32272,3 +32257,4 @@ Vendor.prototype.getUsers = function(cb) {
 
 exports["default"] = Vendor;
 },{"./api":3,"./crypto":6,"./storage":8,"./user":9}]},{},[1])
+;

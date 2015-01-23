@@ -10,7 +10,6 @@ import VendorUser from './slide/vendor-user';
 
 var Slide = {
   DEFAULT_ORGANIZATION: 'slide.life',
-  CACHED_BLOCKS: {},
 
   Actor: Actor,
   Conversation: Conversation,
