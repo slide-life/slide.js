@@ -30892,6 +30892,7 @@ exports["default"] = {
     options.url = this.endpoint(path);
     options.type = 'POST';
     this.enableJSON(options);
+    console.log(options.data);
     $.ajax(options);
   },
 
@@ -31233,12 +31234,12 @@ exports["default"] = {
     },
 
     _packCipher: function(cipher) {
-      return btoa(cipher.key+cipher.iv);
+      // TODO: NB! this and _unpack used to use btoa, atob
+      return cipher.key+cipher.iv;
     },
 
     _unpackCipher: function(packed) {
-      var decoded = atob(packed),
-          key = decoded.substr(0, 16),
+      var key = decoded.substr(0, 16),
           iv = decoded.substr(16);
       return {key:key,iv:iv};
     },
@@ -31735,7 +31736,7 @@ var cbs = {};
 var isReady = false;
 var queue = [];
 
-window.addEventListener("message", function(evt) {
+$(window).on('message', function(evt) {
   var data = evt.message || evt.data;
   if(data.status) {
     isReady = true;
