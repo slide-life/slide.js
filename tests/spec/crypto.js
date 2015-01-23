@@ -29,9 +29,7 @@ describe('Crypto', function () {
 
   describe(".encryptKey", function() {
     it("losslessly encrypts keys", function(done) {
-      console.log("go");
       var key = Crypto.AES.generateKey();
-      console.log("key");
       var keypair = Crypto.generateKeysSync();
       var pub = keypair.publicKey,
           priv = keypair.privateKey;

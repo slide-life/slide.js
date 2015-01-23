@@ -19,7 +19,6 @@ Slide.VendorUser.load(function(next) {
     var vendorDerivedKey = Slide.crypto.decryptStringWithPackedKey(
       vendorUser.vendor_key, vendor.privateKey);
     var key = vendorUser.generatedKey;
-    console.log("assert", key, vendorDerivedKey);
 
     vendor.createForm("Test", ['bank.card'], function(form) {
       new Slide.Conversation(
@@ -33,13 +32,11 @@ Slide.VendorUser.load(function(next) {
               Slide.VendorForm.get(vendor, forms[0].id, function(form) {
                 for( var uuid in form.responses ) {
                   if( form.responses[uuid] ) {
-                    console.log("uuid", uuid);
                     new Slide.VendorUser(uuid).load(function(user) {
                       var key = Slide.crypto.decryptStringWithPackedKey(user.vendor_key,
                         vendor.privateKey);
 
                       var fields = Slide.crypto.AES.decryptData(form.responses[uuid], key);
-                      console.log(fields);
                     });
                   }
                 }

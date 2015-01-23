@@ -41,12 +41,30 @@ describe('Vendor', function () {
     describe('.getProfile()', function () {
       it('should get profile for valid checksum', function (done) {
         vendor.getProfile(function (profile) {
-          assert.notEqual(profile, null);
+          assert.equal(profile.error, undefined);
           done();
         });
       });
 
-      it.skip('should not get profile for invalid checksum', function (done) {
+      describe("login", function(done) {
+        var vendor2;
+        before(function (done) {
+          var vendorName = "Vendor" + Math.floor(Math.random() * 10000);
+          Slide.Vendor.invite(vendorName, function(v) {
+            v.register(function(v) {
+              vendor2 = v;
+              done();
+            });
+          });
+        });
+
+        it('should not get profile for invalid checksum', function (done) {
+          delete vendor2.checksum;
+          vendor2.getProfile(function (profile) {
+            assert.equal(profile.error, undefined);
+            done();
+          });
+        });
       });
     });
 
