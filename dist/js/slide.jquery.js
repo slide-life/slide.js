@@ -30896,7 +30896,6 @@ exports["default"] = {
     options.url = this.endpoint(path);
     options.type = 'POST';
     this.enableJSON(options);
-    console.log(options.data);
     $.ajax(options);
   },
 
@@ -31209,10 +31208,18 @@ Conversation.prototype.submit = function(uuid, fields) {
 exports["default"] = Conversation;
 },{"./api":3,"./crypto":6}],6:[function(require,module,exports){
 "use strict";
-exports["default"] = {
+var Crypto = {
   generateKeys: function (cb) {
     // This is a synchronous function, designed with a callback for the future.
     cb(forge.pki.rsa.generateKeyPair({ bits: 512, e: 0x10001 }));
+  },
+
+  generateKeysSync: function() {
+    var keys;
+    this.generateKeys(function(k) {
+      keys = k;
+    });
+    return this.packKeys(keys);
   },
 
   packPublicKey: function (key) {
@@ -31243,7 +31250,8 @@ exports["default"] = {
     },
 
     _unpackCipher: function(packed) {
-      var key = decoded.substr(0, 16),
+      var decoded = packed,
+          key = decoded.substr(0, 16),
           iv = decoded.substr(16);
       return {key:key,iv:iv};
     },
@@ -31289,6 +31297,34 @@ exports["default"] = {
         encrypted[k] = btoa(this.encrypt(data[k], key));
       }
       return encrypted;
+    },
+
+    encryptKey: function (key, pub) {
+      // ascii-AES -> b64-RSA -> b64-RSA(AES)
+      return Crypto.encrypt(key, pub);
+    },
+    decryptKey: function (key, priv) {
+      // b64-RSA(AES) -> b64-RSA -> ascii-AES
+      return Crypto.decrypt(key, priv);
+    },
+
+    prettyKey: function(key) {
+      if( typeof key != 'string' ) {
+        throw new Error("First argument expected to be 'string'");
+      }
+      if( key.match(/=$/) ) {
+        console.warn("You may have provided a base64 encoded key.");
+      }
+      return btoa(key);
+    },
+    uglyKey: function(key) {
+      if( typeof key != 'string' ) {
+        throw new Error("First argument expected to be 'string'");
+      }
+      if( !key.match(/^[A-Za-z=0-9+\/]+$/) ) {
+        throw new Error("Key is not in base64 encoding.");
+      }
+      return atob(key);
     }
   },
 
@@ -31321,16 +31357,24 @@ exports["default"] = {
     return this.encryptDataWithKey(data, pub);
   },
 
-  encryptStringWithPackedKey: function (text, key) {
+  encrypt: function (text, key) {
     var pub = forge.pki.publicKeyFromPem(atob(key));
-    return btoa(pub.encrypt(text));
+    return pub.encrypt(text);
   },
 
-  decryptStringWithPackedKey: function (text, key) {
+  decrypt: function (text, key) {
     var pub = forge.pki.privateKeyFromPem(atob(key));
-    return pub.decrypt(atob(text));
+    return pub.decrypt(text);
+  },
+  prettyPayload: function(payload) {
+    if( typeof payload != 'string' ) {
+      throw new Error("First argument expected to be 'string'");
+    }
+    return btoa(payload);
   }
 };
+
+exports["default"] = Crypto;
 },{}],7:[function(require,module,exports){
 "use strict";
 var Block = require("./block")["default"];
@@ -31890,14 +31934,14 @@ User.load = function(number, cb) {
   });
 };
 
-User.register = function(number, cb) {
+User.register = function(number, cb, fail) {
   var keys;
   var user = new User();
   Crypto.generateKeys(function(k) {
     keys = Crypto.packKeys(k);
   });
   var symmetricKey = Crypto.AES.generateKey();
-  var key = Crypto.encryptStringWithPackedKey(symmetricKey, keys.publicKey);
+  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
   user.symmetricKey = symmetricKey;
   user.publicKey = keys.publicKey;
   user.privateKey = keys.privateKey;
@@ -31907,6 +31951,9 @@ User.register = function(number, cb) {
     success: function (u) {
       user.id = u.id;
       cb && cb(user);
+    },
+    failure: function(error) {
+      fail(error);
     }
   });
 };
@@ -32011,7 +32058,8 @@ var VendorUser = function(uuid) {
 };
 
 VendorUser.prototype.fromObject = function(obj) {
-  $.extend(this, obj);
+  for( var k in obj )
+    this[k] = obj[k];
 };
 
 VendorUser.prototype.load = function(cb) {
@@ -32025,7 +32073,7 @@ VendorUser.prototype.load = function(cb) {
 
 VendorUser.prototype.getVendorKey = function(privateKey) {
   console.log(this);
-  return Crypto.decryptStringWithPackedKey(this.vendorKey, privateKey);
+  return Crypto.decrypt(this.vendorKey, privateKey);
 };
 
 VendorUser.load = function(fail, success) {
@@ -32043,21 +32091,18 @@ VendorUser.persist = function(vendorUser) {
 };
 
 VendorUser.createRelationship = function(user, vendor, cb) {
-  var keys;
-  Crypto.generateKeys(function(k) {
-    keys = k;
-  });
+  var keys = Crypto.generateKeysSync();
 
   var key = Crypto.AES.generateKey();
-  var userKey = Crypto.encryptStringWithPackedKey(key, user.publicKey);
-  var vendorKey = Crypto.encryptStringWithPackedKey(key, vendor.publicKey);
-  var checksum = Crypto.encryptStringWithPackedKey('', user.publicKey);
+  var userKey = Crypto.AES.encryptKey(key, user.publicKey);
+  var vendorKey = Crypto.AES.encryptKey(key, vendor.publicKey);
+  var checksum = Crypto.encrypt('', user.publicKey);
 
   API.post('/vendors/'+vendor.id+'/vendor_users', {
     data: {
-      key: userKey,
+      key: Crypto.AES.prettyKey(userKey),
       public_key: user.publicKey,
-      checksum: checksum,
+      checksum: Crypto.prettyPayload(checksum),
       vendor_key: vendorKey
     },
     success: function(resp) {
@@ -32067,7 +32112,7 @@ VendorUser.createRelationship = function(user, vendor, cb) {
 
       var vendorUser = new VendorUser(resp.uuid);
       vendorUser.fromObject(resp);
-      VendorUser.persist(vendorUser);
+      // VendorUser.persist(vendorUser);
       cb && cb(vendorUser);
     }
   });
@@ -32101,7 +32146,7 @@ var Vendor = function (name, chk, id, keys) {
     this.publicKey = keys.pub;
     this.privateKey = keys.priv;
     this.symmetricKey = keys.sym;
-    this.checksum = chk || Crypto.encryptStringWithPackedKey('', keys.pub);
+    this.checksum = chk || Crypto.encrypt('', keys.pub);
   }
   this.name = name;
   this.id = id;
@@ -32158,11 +32203,11 @@ Vendor.prototype.register = function (cb) {
     keys = Crypto.packKeys(k);
   });
   var symmetricKey = Crypto.AES.generateKey();
-  var key = Crypto.encryptStringWithPackedKey(symmetricKey, keys.publicKey);
+  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
   this.publicKey = keys.publicKey;
   this.privateKey = keys.privateKey;
   this.symmetricKey = symmetricKey;
-  this.checksum = Crypto.encryptStringWithPackedKey('', keys.publicKey);
+  this.checksum = Crypto.encrypt('', keys.publicKey);
   var self = this;
   API.put('/vendors/' + id, {
     data: {

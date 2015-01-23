@@ -15,5 +15,7 @@ var Slide = require('../build/slide').default;
 require('./spec/user')(Slide);
 require('./spec/vendor')(Slide);
 require('./spec/vendor-user')(Slide);
+require('./spec/vendor-form')(Slide);
 require('./spec/crypto')(Slide);
+require('./spec/block')(Slide);
 
