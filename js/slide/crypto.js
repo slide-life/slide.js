@@ -99,22 +99,10 @@ var Crypto = {
     },
 
     prettyKey: function(key) {
-      if( typeof key != 'string' ) {
-        throw new Error("First argument expected to be 'string'");
-      }
-      if( key.match(/=$/) ) {
-        console.warn("You may have provided a base64 encoded key.");
-      }
-      return btoa(key);
+      return Crypto.prettyPayload(key);
     },
     uglyKey: function(key) {
-      if( typeof key != 'string' ) {
-        throw new Error("First argument expected to be 'string'");
-      }
-      if( !key.match(/^[A-Za-z=0-9+\/]+$/) ) {
-        throw new Error("Key is not in base64 encoding.");
-      }
-      return atob(key);
+      return Crypto.uglyPayload(key);
     }
   },
 
@@ -160,7 +148,19 @@ var Crypto = {
     if( typeof payload != 'string' ) {
       throw new Error("First argument expected to be 'string'");
     }
+    if( payload.match(/=$/) ) {
+      console.warn("You may have provided a base64 encoded payload.");
+    }
     return btoa(payload);
+  },
+  uglyPayload: function(payload) {
+    if( typeof payload != 'string' ) {
+      throw new Error("First argument expected to be 'string'");
+    }
+    if( !payload.match(/^[A-Za-z=0-9+\/]+$/) ) {
+      throw new Error("Payload is not in base64 encoding.");
+    }
+    return atob(payload);
   }
 };
 

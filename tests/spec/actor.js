@@ -1,6 +1,7 @@
+require('../monkey-patches');
 var assert = require('assert');
-exports = module.exports = function (Slide) {
-  describe('Actor', function () {
-  });
-};
+var Slide = require('../../build/slide').default;
+
+describe('Actor', function () {
+});
 

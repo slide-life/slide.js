@@ -30644,7 +30644,7 @@ return require('js/forge');
     };
 
 }));
-;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+;;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 var Crypto = require("./slide/crypto")["default"];
 var Actor = require("./slide/actor")["default"];
@@ -30880,6 +30880,7 @@ exports["default"] = {
   },
 
   enableJSON: function (options) {
+    console.log(JSON.stringify(options.data));
     if (options.data) { options.data = JSON.stringify(options.data); }
     options.contentType = 'application/json; charset=utf-8';
     options.dataType = 'json';
@@ -31309,22 +31310,10 @@ var Crypto = {
     },
 
     prettyKey: function(key) {
-      if( typeof key != 'string' ) {
-        throw new Error("First argument expected to be 'string'");
-      }
-      if( key.match(/=$/) ) {
-        console.warn("You may have provided a base64 encoded key.");
-      }
-      return btoa(key);
+      return Crypto.prettyPayload(key);
     },
     uglyKey: function(key) {
-      if( typeof key != 'string' ) {
-        throw new Error("First argument expected to be 'string'");
-      }
-      if( !key.match(/^[A-Za-z=0-9+\/]+$/) ) {
-        throw new Error("Key is not in base64 encoding.");
-      }
-      return atob(key);
+      return Crypto.uglyPayload(key);
     }
   },
 
@@ -31370,7 +31359,19 @@ var Crypto = {
     if( typeof payload != 'string' ) {
       throw new Error("First argument expected to be 'string'");
     }
+    if( payload.match(/=$/) ) {
+      console.warn("You may have provided a base64 encoded payload.");
+    }
     return btoa(payload);
+  },
+  uglyPayload: function(payload) {
+    if( typeof payload != 'string' ) {
+      throw new Error("First argument expected to be 'string'");
+    }
+    if( !payload.match(/^[A-Za-z=0-9+\/]+$/) ) {
+      throw new Error("Payload is not in base64 encoding.");
+    }
+    return atob(payload);
   }
 };
 
@@ -31935,11 +31936,8 @@ User.load = function(number, cb) {
 };
 
 User.register = function(number, cb, fail) {
-  var keys;
+  var keys = Crypto.generateKeysSync();
   var user = new User();
-  Crypto.generateKeys(function(k) {
-    keys = Crypto.packKeys(k);
-  });
   var symmetricKey = Crypto.AES.generateKey();
   var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
   user.symmetricKey = symmetricKey;
@@ -31947,7 +31945,11 @@ User.register = function(number, cb, fail) {
   user.privateKey = keys.privateKey;
   user.number = number;
   API.post('/users', {
-    data: { key: key, public_key: keys.publicKey, user: number },
+    data: {
+      key: Crypto.AES.prettyKey(key),
+      public_key: Crypto.AES.prettyKey(keys.publicKey),
+      user: number
+    },
     success: function (u) {
       user.id = u.id;
       cb && cb(user);
@@ -32072,7 +32074,6 @@ VendorUser.prototype.load = function(cb) {
 };
 
 VendorUser.prototype.getVendorKey = function(privateKey) {
-  console.log(this);
   return Crypto.decrypt(this.vendorKey, privateKey);
 };
 
@@ -32103,12 +32104,13 @@ VendorUser.createRelationship = function(user, vendor, cb) {
       key: Crypto.AES.prettyKey(userKey),
       public_key: user.publicKey,
       checksum: Crypto.prettyPayload(checksum),
-      vendor_key: vendorKey
+      vendor_key: Crypto.prettyPayload(vendorKey)
     },
     success: function(resp) {
       resp.checksum = checksum;
       resp.privateKey = user.privateKey;
       resp.generatedKey = key;
+      resp.vendorKey = vendorKey;
 
       var vendorUser = new VendorUser(resp.uuid);
       vendorUser.fromObject(resp);
@@ -32198,10 +32200,7 @@ Vendor.invite = function (name, cb) {
 };
 
 Vendor.prototype.register = function (cb) {
-  var invite = this.invite, id = this.id, keys;
-  Crypto.generateKeys(function (k) {
-    keys = Crypto.packKeys(k);
-  });
+  var invite = this.invite, id = this.id, keys = Crypto.generateKeysSync();
   var symmetricKey = Crypto.AES.generateKey();
   var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
   this.publicKey = keys.publicKey;
@@ -32212,9 +32211,9 @@ Vendor.prototype.register = function (cb) {
   API.put('/vendors/' + id, {
     data: {
       invite_code: invite,
-      key: key,
+      key: Crypto.prettyPayload(key),
       public_key: keys.publicKey,
-      checksum: this.checksum
+      checksum: Crypto.prettyPayload(this.checksum)
     },
     success: function (v) {
       self.id = v.id;
@@ -32272,3 +32271,4 @@ Vendor.prototype.getUsers = function(cb) {
 
 exports["default"] = Vendor;
 },{"./api":3,"./crypto":6,"./storage":8,"./user":9}]},{},[1])
+;

@@ -60,10 +60,7 @@ Vendor.invite = function (name, cb) {
 };
 
 Vendor.prototype.register = function (cb) {
-  var invite = this.invite, id = this.id, keys;
-  Crypto.generateKeys(function (k) {
-    keys = Crypto.packKeys(k);
-  });
+  var invite = this.invite, id = this.id, keys = Crypto.generateKeysSync();
   var symmetricKey = Crypto.AES.generateKey();
   var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
   this.publicKey = keys.publicKey;
@@ -74,9 +71,9 @@ Vendor.prototype.register = function (cb) {
   API.put('/vendors/' + id, {
     data: {
       invite_code: invite,
-      key: key,
+      key: Crypto.prettyPayload(key),
       public_key: keys.publicKey,
-      checksum: this.checksum
+      checksum: Crypto.prettyPayload(this.checksum)
     },
     success: function (v) {
       self.id = v.id;

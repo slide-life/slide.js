@@ -22,7 +22,6 @@ VendorUser.prototype.load = function(cb) {
 };
 
 VendorUser.prototype.getVendorKey = function(privateKey) {
-  console.log(this);
   return Crypto.decrypt(this.vendorKey, privateKey);
 };
 
@@ -53,12 +52,13 @@ VendorUser.createRelationship = function(user, vendor, cb) {
       key: Crypto.AES.prettyKey(userKey),
       public_key: user.publicKey,
       checksum: Crypto.prettyPayload(checksum),
-      vendor_key: vendorKey
+      vendor_key: Crypto.prettyPayload(vendorKey)
     },
     success: function(resp) {
       resp.checksum = checksum;
       resp.privateKey = user.privateKey;
       resp.generatedKey = key;
+      resp.vendorKey = vendorKey;
 
       var vendorUser = new VendorUser(resp.uuid);
       vendorUser.fromObject(resp);

@@ -100,11 +100,8 @@ User.load = function(number, cb) {
 };
 
 User.register = function(number, cb, fail) {
-  var keys;
+  var keys = Crypto.generateKeysSync();
   var user = new User();
-  Crypto.generateKeys(function(k) {
-    keys = Crypto.packKeys(k);
-  });
   var symmetricKey = Crypto.AES.generateKey();
   var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
   user.symmetricKey = symmetricKey;
@@ -112,7 +109,11 @@ User.register = function(number, cb, fail) {
   user.privateKey = keys.privateKey;
   user.number = number;
   API.post('/users', {
-    data: { key: key, public_key: keys.publicKey, user: number },
+    data: {
+      key: Crypto.AES.prettyKey(key),
+      public_key: Crypto.AES.prettyKey(keys.publicKey),
+      user: number
+    },
     success: function (u) {
       user.id = u.id;
       cb && cb(user);
