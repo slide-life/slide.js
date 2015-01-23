@@ -13,3 +13,7 @@ GLOBAL.atob = function (string) {
 
 var Slide = require('../build/slide').default;
 require('./spec/user')(Slide);
+require('./spec/vendor')(Slide);
+require('./spec/vendor-user')(Slide);
+require('./spec/crypto')(Slide);
+

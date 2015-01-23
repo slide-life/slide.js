@@ -99,14 +99,14 @@ User.load = function(number, cb) {
   });
 };
 
-User.register = function(number, cb) {
+User.register = function(number, cb, fail) {
   var keys;
   var user = new User();
   Crypto.generateKeys(function(k) {
     keys = Crypto.packKeys(k);
   });
   var symmetricKey = Crypto.AES.generateKey();
-  var key = Crypto.encryptStringWithPackedKey(symmetricKey, keys.publicKey);
+  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
   user.symmetricKey = symmetricKey;
   user.publicKey = keys.publicKey;
   user.privateKey = keys.privateKey;
@@ -116,6 +116,9 @@ User.register = function(number, cb) {
     success: function (u) {
       user.id = u.id;
       cb && cb(user);
+    },
+    failure: function(error) {
+      fail(error);
     }
   });
 };

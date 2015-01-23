@@ -8,7 +8,7 @@ var Vendor = function (name, chk, id, keys) {
     this.publicKey = keys.pub;
     this.privateKey = keys.priv;
     this.symmetricKey = keys.sym;
-    this.checksum = chk || Crypto.encryptStringWithPackedKey('', keys.pub);
+    this.checksum = chk || Crypto.encrypt('', keys.pub);
   }
   this.name = name;
   this.id = id;
@@ -65,11 +65,11 @@ Vendor.prototype.register = function (cb) {
     keys = Crypto.packKeys(k);
   });
   var symmetricKey = Crypto.AES.generateKey();
-  var key = Crypto.encryptStringWithPackedKey(symmetricKey, keys.publicKey);
+  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
   this.publicKey = keys.publicKey;
   this.privateKey = keys.privateKey;
   this.symmetricKey = symmetricKey;
-  this.checksum = Crypto.encryptStringWithPackedKey('', keys.publicKey);
+  this.checksum = Crypto.encrypt('', keys.publicKey);
   var self = this;
   API.put('/vendors/' + id, {
     data: {

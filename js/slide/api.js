@@ -26,7 +26,6 @@ export default {
     options.url = this.endpoint(path);
     options.type = 'POST';
     this.enableJSON(options);
-    console.log(options.data);
     $.ajax(options);
   },
 

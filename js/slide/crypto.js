@@ -1,7 +1,15 @@
-export default {
+var Crypto = {
   generateKeys: function (cb) {
     // This is a synchronous function, designed with a callback for the future.
     cb(forge.pki.rsa.generateKeyPair({ bits: 512, e: 0x10001 }));
+  },
+
+  generateKeysSync: function() {
+    var keys;
+    this.generateKeys(function(k) {
+      keys = k;
+    });
+    return this.packKeys(keys);
   },
 
   packPublicKey: function (key) {
@@ -32,7 +40,8 @@ export default {
     },
 
     _unpackCipher: function(packed) {
-      var key = decoded.substr(0, 16),
+      var decoded = packed,
+          key = decoded.substr(0, 16),
           iv = decoded.substr(16);
       return {key:key,iv:iv};
     },
@@ -78,6 +87,34 @@ export default {
         encrypted[k] = btoa(this.encrypt(data[k], key));
       }
       return encrypted;
+    },
+
+    encryptKey: function (key, pub) {
+      // ascii-AES -> b64-RSA -> b64-RSA(AES)
+      return Crypto.encrypt(key, pub);
+    },
+    decryptKey: function (key, priv) {
+      // b64-RSA(AES) -> b64-RSA -> ascii-AES
+      return Crypto.decrypt(key, priv);
+    },
+
+    prettyKey: function(key) {
+      if( typeof key != 'string' ) {
+        throw new Error("First argument expected to be 'string'");
+      }
+      if( key.match(/=$/) ) {
+        console.warn("You may have provided a base64 encoded key.");
+      }
+      return btoa(key);
+    },
+    uglyKey: function(key) {
+      if( typeof key != 'string' ) {
+        throw new Error("First argument expected to be 'string'");
+      }
+      if( !key.match(/^[A-Za-z=0-9+\/]+$/) ) {
+        throw new Error("Key is not in base64 encoding.");
+      }
+      return atob(key);
     }
   },
 
@@ -110,13 +147,21 @@ export default {
     return this.encryptDataWithKey(data, pub);
   },
 
-  encryptStringWithPackedKey: function (text, key) {
+  encrypt: function (text, key) {
     var pub = forge.pki.publicKeyFromPem(atob(key));
-    return btoa(pub.encrypt(text));
+    return pub.encrypt(text);
   },
 
-  decryptStringWithPackedKey: function (text, key) {
+  decrypt: function (text, key) {
     var pub = forge.pki.privateKeyFromPem(atob(key));
-    return pub.decrypt(atob(text));
+    return pub.decrypt(text);
+  },
+  prettyPayload: function(payload) {
+    if( typeof payload != 'string' ) {
+      throw new Error("First argument expected to be 'string'");
+    }
+    return btoa(payload);
   }
 };
+
+export default Crypto;

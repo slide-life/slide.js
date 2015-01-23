@@ -8,7 +8,8 @@ var VendorUser = function(uuid) {
 };
 
 VendorUser.prototype.fromObject = function(obj) {
-  $.extend(this, obj);
+  for( var k in obj )
+    this[k] = obj[k];
 };
 
 VendorUser.prototype.load = function(cb) {
@@ -22,7 +23,7 @@ VendorUser.prototype.load = function(cb) {
 
 VendorUser.prototype.getVendorKey = function(privateKey) {
   console.log(this);
-  return Crypto.decryptStringWithPackedKey(this.vendorKey, privateKey);
+  return Crypto.decrypt(this.vendorKey, privateKey);
 };
 
 VendorUser.load = function(fail, success) {
@@ -40,21 +41,18 @@ VendorUser.persist = function(vendorUser) {
 };
 
 VendorUser.createRelationship = function(user, vendor, cb) {
-  var keys;
-  Crypto.generateKeys(function(k) {
-    keys = k;
-  });
+  var keys = Crypto.generateKeysSync();
 
   var key = Crypto.AES.generateKey();
-  var userKey = Crypto.encryptStringWithPackedKey(key, user.publicKey);
-  var vendorKey = Crypto.encryptStringWithPackedKey(key, vendor.publicKey);
-  var checksum = Crypto.encryptStringWithPackedKey('', user.publicKey);
+  var userKey = Crypto.AES.encryptKey(key, user.publicKey);
+  var vendorKey = Crypto.AES.encryptKey(key, vendor.publicKey);
+  var checksum = Crypto.encrypt('', user.publicKey);
 
   API.post('/vendors/'+vendor.id+'/vendor_users', {
     data: {
-      key: userKey,
+      key: Crypto.AES.prettyKey(userKey),
       public_key: user.publicKey,
-      checksum: checksum,
+      checksum: Crypto.prettyPayload(checksum),
       vendor_key: vendorKey
     },
     success: function(resp) {
@@ -64,7 +62,7 @@ VendorUser.createRelationship = function(user, vendor, cb) {
 
       var vendorUser = new VendorUser(resp.uuid);
       vendorUser.fromObject(resp);
-      VendorUser.persist(vendorUser);
+      // VendorUser.persist(vendorUser);
       cb && cb(vendorUser);
     }
   });
