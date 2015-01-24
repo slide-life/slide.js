@@ -92,14 +92,31 @@ describe('Vendor', function () {
       it.skip('should not display users for invalid checksum', function (done) {
       });
     });
+  });
 
+  describe('form tests', function () {
     describe('.createForm()', function () {
-      it.skip('should create a form', function (done) {
+      it('should create a form', function (done) {
+        vendor(function (vendor) {
+          vendor.createForm('form thing', '', ['slide.life:base.phone-number'], function (vendorForm) {
+            assert.equal('form thing', vendorForm.name);
+            done();
+          });
+        });
       });
     });
 
     describe('.loadForms()', function () {
-      it.skip('should load its vendor forms', function (done) {
+      it('should load its vendor forms', function (done) {
+        vendor(function (vendor) {
+          vendor.createForm('form thing 2', '', ['slide.life:base.phone-number'], function (vendorForm) {
+            vendor.loadForms(function (forms) {
+              var formNames = forms.map(function (x) { return x.name });
+              assert.notEqual(formNames.indexOf('form thing 2'), -1);
+              done();
+            });
+          });
+        });
       });
     });
   });

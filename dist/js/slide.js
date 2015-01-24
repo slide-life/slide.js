@@ -30645,13 +30645,16 @@ return require('js/forge');
 var API = require("../utils/api")["default"];
 var Crypto = require("../utils/crypto")["default"];
 var Conversation = require("./conversation")["default"];
+var Securable = require("./securable")["default"];
 
-function Actor() {
+var Actor = function() {
   var self = this;
   var keys = Crypto.generateKeysSync();
   self.publicKey = keys.publicKey;
   self.privateKey = keys.privateKey;
-}
+};
+
+$.extend(Actor.prototype, Securable.prototype);
 
 Actor.fromObject = function(obj) {
   var actor = new Actor();
@@ -30698,7 +30701,7 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
       upstream: self.id,
       type: 'actor'
     }, downstream, onCreate);
-    self.key = conversation.symmetricKey;
+    self.symmetricKey = conversation.symmetricKey;
   });
 };
 
@@ -30715,7 +30718,7 @@ Actor.prototype.onmessage = function(message, cb) {
     cb(message.payload.blocks, message.payload.conversation);
   } else {
     var data = message.payload.fields;
-    cb(Crypto.AES.decryptData(data, this.key));
+    cb(this.decryptData(data));
   }
 };
 
@@ -30733,7 +30736,7 @@ Actor.prototype.listen = function(cb) {
 };
 
 exports["default"] = Actor;
-},{"../utils/api":9,"../utils/crypto":10,"./conversation":3}],2:[function(require,module,exports){
+},{"../utils/api":10,"../utils/crypto":11,"./conversation":3,"./securable":4}],2:[function(require,module,exports){
 "use strict";
 var API = require("../utils/api")["default"];
 
@@ -30928,7 +30931,7 @@ var Block = {
 };
 
 exports["default"] = Block;
-},{"../utils/api":9}],3:[function(require,module,exports){
+},{"../utils/api":10}],3:[function(require,module,exports){
 "use strict";
 var API = require("../utils/api")["default"];
 var Crypto = require("../utils/crypto")["default"];
@@ -31007,11 +31010,71 @@ Conversation.prototype.submit = function(uuid, fields) {
 };
 
 exports["default"] = Conversation;
-},{"../utils/api":9,"../utils/crypto":10}],4:[function(require,module,exports){
+},{"../utils/api":10,"../utils/crypto":11}],4:[function(require,module,exports){
+"use strict";
+var Crypto = require("../utils/crypto")["default"];
+
+var Securable = function(pub, priv, key) {
+  this.loadWithKeys(pub, priv, key);
+};
+
+Securable.prototype.loadWithKeys = function(pub, priv, key) {
+  this.publicKey = pub;
+  this.privateKey = priv;
+  this.symmetricKey = key;
+};
+
+Securable.prototype.generate = function() {
+  var self = this;
+  var keys = Crypto.generateKeysSync();
+  self.publicKey = keys.publicKey;
+  self.privateKey = keys.privateKey;
+  self.symmetricKey = Crypto.AES.generateKey();
+};
+
+Securable.prototype.prettyKey = function() {
+  return Crypto.AES.prettyKey(this.encryptedSymmetricKey());
+};
+
+Securable.prototype.prettyPublicKey = function() {
+  return this.publicKey;
+};
+
+Securable.prototype.encryptedSymmetricKey = function() {
+  return Crypto.encrypt(this.symmetricKey, this.publicKey);
+};
+
+Securable.prototype.getChecksum = function() {
+  return Crypto.encrypt('', this.publicKey);
+};
+
+Securable.prototype.prettyChecksum = function() {
+  return this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum;
+};
+
+Securable.prototype.decrypt = function(data) {
+  return Crypto.AES.decrypt(data, this.symmetricKey);
+};
+
+Securable.prototype.decryptData = function(data) {
+  return Crypto.AES.decryptData(data, this.symmetricKey);
+};
+
+Securable.prototype.encrypt = function(data) {
+  return Crypto.AES.encrypt(data, this.symmetricKey);
+};
+
+Securable.prototype.encryptData = function(data) {
+  return Crypto.AES.encryptData(data, this.symmetricKey);
+};
+
+exports["default"] = Securable;
+},{"../utils/crypto":11}],5:[function(require,module,exports){
 "use strict";
 var API = require("../utils/api")["default"];
 var Crypto = require("../utils/crypto")["default"];
 var Storage = require("../utils/storage")["default"];
+var Securable = require("./securable")["default"];
 
 var User = function(number, pub, priv, key) {
   this.number = number;
@@ -31019,6 +31082,8 @@ var User = function(number, pub, priv, key) {
   this.privateKey = priv;
   this.symmetricKey = key;
 };
+
+$.extend(User.prototype, Securable.prototype);
 
 User.prototype.getId = function() {
   return this.number;
@@ -31080,7 +31145,7 @@ User.prototype.loadRelationships = function(success) {
   API.get('/users/' + this.number + '/vendor_users', {
     success: function (encryptedUuids) {
       var uuids = encryptedUuids.map(function(encryptedUuid) {
-        return Crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
+        return this.decryptData(encryptedUuid);
       });
       var vendorUsers = uuids.map(function(uuid) {
         return Slide.VendorUser.new(uuid);
@@ -31114,15 +31179,13 @@ User.register = function(number, cb, fail) {
   var keys = Crypto.generateKeysSync();
   var user = new User();
   var symmetricKey = Crypto.AES.generateKey();
-  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
-  user.symmetricKey = symmetricKey;
-  user.publicKey = keys.publicKey;
-  user.privateKey = keys.privateKey;
+  user.generate();
+  var key = user.encryptedSymmetricKey();
   user.number = number;
   API.post('/users', {
     data: {
-      key: Crypto.AES.prettyKey(key),
-      public_key: Crypto.AES.prettyKey(keys.publicKey),
+      key: user.prettyKey(),
+      public_key: user.prettyPublicKey(),
       user: number
     },
     success: function (u) {
@@ -31133,20 +31196,6 @@ User.register = function(number, cb, fail) {
       fail(error);
     }
   });
-};
-
-User.prototype.decryptData = function(data) {
-  return Crypto.AES.decryptData(data, this.symmetricKey);
-};
-User.prototype.decrypt = function(data) {
-  return Crypto.AES.decrypt(data, this.symmetricKey);
-};
-
-User.prototype.encryptData = function(data) {
-  return Crypto.AES.encryptData(data, this.symmetricKey);
-};
-User.prototype.encrypt = function(data) {
-  return Crypto.AES.encrypt(data, this.symmetricKey);
 };
 
 User.prototype.getProfile = function(cb) {
@@ -31177,7 +31226,7 @@ User.prototype.listen = function(cb) {
       cb(message.payload.blocks, message.payload.conversation);
     } else {
       var data = message.payload.fields;
-      cb(Crypto.AES.decryptData(data, self.symmetricKey));
+      cb(this.decryptData(data));
     }
   };
 };
@@ -31190,8 +31239,9 @@ User.prototype.requestPrivateKey = function(cb) {
   });
 };
 
+
 exports["default"] = User;
-},{"../utils/api":9,"../utils/crypto":10,"../utils/storage":11}],5:[function(require,module,exports){
+},{"../utils/api":10,"../utils/crypto":11,"../utils/storage":12,"./securable":4}],6:[function(require,module,exports){
 "use strict";
 var API = require("../utils/api")["default"];
 
@@ -31223,7 +31273,7 @@ VendorForm.fromObject = function(obj) {
 };
 
 exports["default"] = VendorForm;
-},{"../utils/api":9}],6:[function(require,module,exports){
+},{"../utils/api":10}],7:[function(require,module,exports){
 "use strict";
 var API = require("../utils/api")["default"];
 var Crypto = require("../utils/crypto")["default"];
@@ -31278,7 +31328,7 @@ VendorUser.createRelationship = function(user, vendor, cb) {
     data: {
       key: Crypto.AES.prettyKey(userKey),
       public_key: user.publicKey,
-      checksum: Crypto.prettyPayload(checksum),
+      checksum: vendor.prettyChecksum(),
       vendor_key: Crypto.prettyPayload(vendorKey)
     },
     success: function(resp) {
@@ -31311,19 +31361,21 @@ VendorUser.prototype.loadVendorForms = function(cb) {
 $.extend(VendorUser.prototype, User.prototype);
 
 exports["default"] = VendorUser;
-},{"../utils/api":9,"../utils/crypto":10,"../utils/storage":11,"./user":4}],7:[function(require,module,exports){
+},{"../utils/api":10,"../utils/crypto":11,"../utils/storage":12,"./user":5}],8:[function(require,module,exports){
 "use strict";
 var API = require("../utils/api")["default"];
 var Crypto = require("../utils/crypto")["default"];
 var Storage = require("../utils/storage")["default"];
+var VendorForm = require("./vendor-form")["default"];
 var User = require("./user")["default"];
+var Securable = require("./securable")["default"];
 
 var Vendor = function (name, chk, id, keys) {
   if (keys) {
     this.publicKey = keys.pub;
     this.privateKey = keys.priv;
     this.symmetricKey = keys.sym;
-    this.checksum = chk || Crypto.encrypt('', keys.pub);
+    this.checksum = chk || this.checksum();
   }
   this.name = name;
   this.id = id;
@@ -31376,19 +31428,16 @@ Vendor.invite = function (name, cb) {
 
 Vendor.prototype.register = function (cb) {
   var invite = this.invite, id = this.id, keys = Crypto.generateKeysSync();
-  var symmetricKey = Crypto.AES.generateKey();
-  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
-  this.publicKey = keys.publicKey;
-  this.privateKey = keys.privateKey;
-  this.symmetricKey = symmetricKey;
-  this.checksum = Crypto.encrypt('', keys.publicKey);
+  this.generate();
+  var key = this.encryptedSymmetricKey();
+  this.checksum = this.getChecksum();
   var self = this;
   API.put('/vendors/' + id, {
     data: {
       invite_code: invite,
-      key: Crypto.prettyPayload(key),
+      key: this.prettyKey(),
       public_key: keys.publicKey,
-      checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum
+      checksum: this.prettyChecksum()
     },
     success: function (v) {
       self.id = v.id;
@@ -31400,26 +31449,27 @@ Vendor.prototype.register = function (cb) {
 Vendor.prototype.listen = function (cb) {
   var socket = API.socket('ws://', '/vendors/' + this.number + '/listen');
   socket.onmessage = function (event) {
-    console.log('refresh');
+    cb();
   };
 };
 
-Vendor.prototype.createForm = function (name, formFields, cb) {
+Vendor.prototype.createForm = function (name, description, formFields, cb) {
   API.post('/vendors/' + this.id + '/vendor_forms', {
     data: {
       name: name,
+      description: description,
       form_fields: formFields,
-      checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum
+      checksum: this.prettyChecksum()
     },
     success: function (form) {
-      cb && cb(Slide.VendorForm.fromObject(form));
+      cb && cb(VendorForm.fromObject(form));
     }
   });
 };
 
 Vendor.prototype.loadForms = function(cb) {
   API.get('/vendors/' + this.id + '/vendor_forms', {
-    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
+    data: { checksum: this.prettyChecksum() },
     success: function(forms) {
       cb(forms);
     }
@@ -31428,25 +31478,23 @@ Vendor.prototype.loadForms = function(cb) {
 
 Vendor.prototype.getProfile = function(success, fail) {
   API.get('/vendors/' + this.id + '/profile', {
-    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
-    success: function(profile) {
-      success(profile);
-    },
+    data: { checksum: this.prettyChecksum() },
+    success: success,
     fail: fail
   });
 };
 
-Vendor.prototype.getUsers = function(cb) {
+Vendor.prototype.getUsers = function(success, fail) {
   API.get('/vendors/' + this.id + '/vendor_users', {
-    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
-    success: function(users) {
-      cb(users);
-    }
+    data: { checksum: this.prettyChecksum() },
+    success: function(x) { success(x); },
+    fail: function(x) { fail(x); }
   });
 };
 
+
 exports["default"] = Vendor;
-},{"../utils/api":9,"../utils/crypto":10,"../utils/storage":11,"./user":4}],8:[function(require,module,exports){
+},{"../utils/api":10,"../utils/crypto":11,"../utils/storage":12,"./securable":4,"./user":5,"./vendor-form":6}],9:[function(require,module,exports){
 "use strict";
 var Actor = require("./models/actor")["default"];
 var Conversation = require("./models/conversation")["default"];
@@ -31588,9 +31636,9 @@ var Slide = {
 
 exports["default"] = Slide;
 window.Slide = Slide;
-},{"./models/actor":1,"./models/block":2,"./models/conversation":3,"./models/user":4,"./models/vendor":7,"./models/vendor-form":5,"./models/vendor-user":6,"./views/form":12}],9:[function(require,module,exports){
+},{"./models/actor":1,"./models/block":2,"./models/conversation":3,"./models/user":5,"./models/vendor":8,"./models/vendor-form":6,"./models/vendor-user":7,"./views/form":13}],10:[function(require,module,exports){
 "use strict";
-var HOST = 'api-sandbox.slide.life';
+var HOST = 'localhost:9292';
 
 exports["default"] = {
   endpoint: function(/* protocol, */ path) {
@@ -31639,7 +31687,7 @@ exports["default"] = {
     return new WebSocket(this.endpoint('ws://', path));
   }
 };
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 var Crypto = {
   generateKeys: function (cb) {
@@ -31808,7 +31856,7 @@ var Crypto = {
 };
 
 exports["default"] = Crypto;
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 var API = require("./api")["default"];
 
@@ -31863,7 +31911,7 @@ var Storage = {
 };
 
 exports["default"] = Storage;
-},{"./api":9}],12:[function(require,module,exports){
+},{"./api":10}],13:[function(require,module,exports){
 "use strict";
 var Block = require("../models/block")["default"];
 
@@ -32264,5 +32312,5 @@ Form.prototype.getStringifiedPatchedUserData = function () {
 };
 
 exports["default"] = Form;
-},{"../models/block":2}]},{},[8])
+},{"../models/block":2}]},{},[9])
 ;

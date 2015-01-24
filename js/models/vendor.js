@@ -1,6 +1,7 @@
 import API from '../utils/api';
 import Crypto from '../utils/crypto';
 import Storage from '../utils/storage';
+import VendorForm from './vendor-form';
 import User from './user';
 import Securable from './securable';
 
@@ -87,15 +88,16 @@ Vendor.prototype.listen = function (cb) {
   };
 };
 
-Vendor.prototype.createForm = function (name, formFields, cb) {
+Vendor.prototype.createForm = function (name, description, formFields, cb) {
   API.post('/vendors/' + this.id + '/vendor_forms', {
     data: {
       name: name,
+      description: description,
       form_fields: formFields,
       checksum: this.prettyChecksum()
     },
     success: function (form) {
-      cb && cb(Slide.VendorForm.fromObject(form));
+      cb && cb(VendorForm.fromObject(form));
     }
   });
 };
