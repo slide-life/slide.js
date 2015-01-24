@@ -1,4 +1,8 @@
-GLOBAL.window = {location: {search: '', href: '', pathname: ''}};
+GLOBAL.window = {
+  location: {search: '', href: '', pathname: ''},
+  addEventListener: function() {
+  
+  } };
 GLOBAL.$ = require('jquery')(require('jsdom').jsdom().parentWindow);
 GLOBAL.$.ajax = require('najax');
 GLOBAL.forge = require('../bower_components/forge/js/forge.js');

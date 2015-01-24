@@ -31347,6 +31347,7 @@ VendorUser.createRelationship = function(user, vendor, cb) {
 
 VendorUser.prototype.loadVendorForms = function(cb) {
   API.get('/vendor_users/' + this.uuid + '/vendor_forms', {
+    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
     success: function(vendorForms) {
       var vendorFormHash = {};
       vendorForms.forEach(function(vf) {
