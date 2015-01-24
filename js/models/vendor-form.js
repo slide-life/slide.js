@@ -1,4 +1,4 @@
-import API from './api';
+import API from '../utils/api';
 
 var VendorForm = function(name, fields, vendorId) {
   this.name = name;

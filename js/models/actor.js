@@ -1,5 +1,5 @@
-import API from './api';
-import Crypto from './crypto';
+import API from '../utils/api';
+import Crypto from '../utils/crypto';
 import Conversation from './conversation';
 
 function Actor() {

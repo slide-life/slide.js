@@ -1,6 +1,6 @@
-import API from './api';
-import Crypto from './crypto';
-import Storage from './storage';
+import API from '../utils/api';
+import Crypto from '../utils/crypto';
+import Storage from '../utils/storage';
 import User from './user';
 
 var VendorUser = function(uuid) {

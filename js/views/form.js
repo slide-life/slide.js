@@ -1,4 +1,4 @@
-import Block from './block';
+import Block from '../models/block';
 
 function deepCompare () {
   var i, l, leftChain, rightChain;

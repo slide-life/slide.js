@@ -1,12 +1,11 @@
-import Crypto from './slide/crypto';
-import Actor from './slide/actor';
-import Conversation from './slide/conversation';
-import User from './slide/user';
-import Block from './slide/block';
-import Vendor from './slide/vendor';
-import Form from './slide/form';
-import VendorForm from './slide/vendor-form';
-import VendorUser from './slide/vendor-user';
+import Actor from './models/actor';
+import Conversation from './models/conversation';
+import User from './models/user';
+import Block from './models/block';
+import Vendor from './models/vendor';
+import VendorForm from './models/vendor-form';
+import VendorUser from './models/vendor-user';
+import Form from './views/form';
 
 var Slide = {
   DEFAULT_ORGANIZATION: 'slide.life',

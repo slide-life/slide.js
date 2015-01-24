@@ -1,7 +1,7 @@
-import API from './api';
+import API from '../utils/api';
+import Crypto from '../utils/crypto';
+import Storage from '../utils/storage';
 import User from './user';
-import Crypto from './crypto';
-import Storage from './storage';
 
 var Vendor = function (name, chk, id, keys) {
   if (keys) {
