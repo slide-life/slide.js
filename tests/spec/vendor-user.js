@@ -1,6 +1,6 @@
-require('../monkey-patches');
+require('../mocks');
 var assert = require('assert');
-var Crypto = require('../../build/slide/crypto.js').default;
+var Crypto = require('../../build/utils/crypto.js').default;
 var Slide = require('../../build/slide').default;
 
 describe('VendorUser', function () {
