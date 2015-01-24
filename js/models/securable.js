@@ -18,7 +18,7 @@ Securable.prototype.generate = function() {
   });
 };
 
-Securable.prototype.encryptedSymKey = function() {
+Securable.prototype.encryptedSymmetricKey = function() {
   return Crypto.encryptStringWithPackedKey(this.symmetricKey, this.publicKey);
 };
 
@@ -27,9 +27,17 @@ Securable.prototype.checksum = function() {
 };
 
 Securable.prototype.decrypt = function(data) {
+  return Crypto.AES.decrypt(data, this.symmetricKey);
+};
+
+Securable.prototype.decryptData = function(data) {
   return Crypto.AES.decryptData(data, this.symmetricKey);
 };
 
 Securable.prototype.encrypt = function(data) {
+  return Crypto.AES.encrypt(data, this.symmetricKey);
+};
+
+Securable.prototype.encryptData = function(data) {
   return Crypto.AES.encryptData(data, this.symmetricKey);
 };

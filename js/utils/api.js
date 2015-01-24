@@ -1,4 +1,4 @@
-var HOST = 'api-sandbox.slide.life';
+var HOST = 'localhost:9292';
 
 export default {
   endpoint: function(/* protocol, */ path) {

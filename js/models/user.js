@@ -1,6 +1,7 @@
 import API from '../utils/api';
 import Crypto from '../utils/crypto';
 import Storage from '../utils/storage';
+import Securable from './securable';
 
 var User = function(number, pub, priv, key) {
   this.number = number;
@@ -103,7 +104,7 @@ User.register = function(number, cb, fail) {
   var keys = Crypto.generateKeysSync();
   var user = new User();
   var symmetricKey = Crypto.AES.generateKey();
-  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
+  var key = User.encryptedSymmetricKey();
   user.symmetricKey = symmetricKey;
   user.publicKey = keys.publicKey;
   user.privateKey = keys.privateKey;
@@ -122,20 +123,6 @@ User.register = function(number, cb, fail) {
       fail(error);
     }
   });
-};
-
-User.prototype.decryptData = function(data) {
-  return Crypto.AES.decryptData(data, this.symmetricKey);
-};
-User.prototype.decrypt = function(data) {
-  return Crypto.AES.decrypt(data, this.symmetricKey);
-};
-
-User.prototype.encryptData = function(data) {
-  return Crypto.AES.encryptData(data, this.symmetricKey);
-};
-User.prototype.encrypt = function(data) {
-  return Crypto.AES.encrypt(data, this.symmetricKey);
 };
 
 User.prototype.getProfile = function(cb) {
@@ -178,5 +165,7 @@ User.prototype.requestPrivateKey = function(cb) {
     cb.call(self, fields['private-key']);
   });
 };
+
+$.extend(User, Securable);
 
 export default User;
