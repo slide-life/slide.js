@@ -30640,7 +30640,7 @@ return require('js/forge');
     };
 
 }));
-;;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 var API = require("../utils/api")["default"];
 var Crypto = require("../utils/crypto")["default"];
@@ -31170,8 +31170,9 @@ User.loadFromStorage = function (success, fail) {
 };
 
 User.load = function(number, cb) {
+  var self = this;
   this.loadFromStorage(cb, function () {
-    this.register(number, cb);
+    self.register(number, cb);
   });
 };
 
@@ -32314,5 +32315,4 @@ Form.prototype.getStringifiedPatchedUserData = function () {
 };
 
 exports["default"] = Form;
-},{"../models/block":2}]},{},[9])
-;
+},{"../models/block":2}]},{},[9]);

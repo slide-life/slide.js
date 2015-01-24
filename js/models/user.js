@@ -97,8 +97,9 @@ User.loadFromStorage = function (success, fail) {
 };
 
 User.load = function(number, cb) {
+  var self = this;
   this.loadFromStorage(cb, function () {
-    this.register(number, cb);
+    self.register(number, cb);
   });
 };
 
