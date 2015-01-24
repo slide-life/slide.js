@@ -6,3 +6,4 @@ build
 .sass-cache
 dist/css/slide.css.map
 logs
+.idea

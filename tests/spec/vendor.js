@@ -61,7 +61,7 @@ describe('Vendor', function () {
         it('should not get profile for invalid checksum', function (done) {
           delete vendor2.checksum;
           vendor2.getProfile(function (profile) {
-            assert.equal(profile.error, undefined);
+            assert.equal(profile.error, 'Invalid checksum.');
             done();
           });
         });
