@@ -1,4 +1,4 @@
-require('./monkey-patches');
+require('./mocks');
 
 var Slide = require('../build/slide').default;
 require('./spec/actor');
