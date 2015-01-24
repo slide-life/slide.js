@@ -30646,151 +30646,8 @@ return require('js/forge');
 }));
 ;;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
-var Crypto = require("./slide/crypto")["default"];
-var Actor = require("./slide/actor")["default"];
-var Conversation = require("./slide/conversation")["default"];
-var User = require("./slide/user")["default"];
-var Block = require("./slide/block")["default"];
-var Vendor = require("./slide/vendor")["default"];
-var Form = require("./slide/form")["default"];
-var VendorForm = require("./slide/vendor-form")["default"];
-var VendorUser = require("./slide/vendor-user")["default"];
-
-var Slide = {
-  DEFAULT_ORGANIZATION: 'slide.life',
-
-  Actor: Actor,
-  Conversation: Conversation,
-  User: User,
-  Vendor: Vendor,
-  VendorForm: VendorForm,
-  VendorUser: VendorUser,
-  Block: Block,
-  Form: Form,
-
-  extractBlocks: function (form) {
-    return form.find('*').map(function () {
-      return $(this).attr('data-slide');
-    }).toArray();
-  },
-
-  populateFields: function (form, fields, sec) {
-    form.find('*').each(function () {
-      var field = $(this).attr('data-slide');
-      if (!!field && fields[field]) {
-        $(this).val(fields[field]);
-      }
-    });
-  },
-
-  prepareModal: function (title) {
-    if (!this._modal) {
-      this._modal = $('<div class="slide-modal"></div>');
-      var header = $('<div class="slide-modal-header"></div>').append('<div class="slide-logo"></div>', '<div class="slide-modal-action"></div>');
-      this._modal.append(header, '<div class="slide-modal-body"></div>');
-      this._modal.appendTo($('body'));
-    }
-    return this._modal;
-  },
-
-  prepareModalWithPassphrase: function (title, options, cb) {
-    this.prepareModal();
-    this.presentInputPromptInModal(options, cb);
-    return this._modal;
-  },
-
-  presentInputPromptInModal: function (options, cb) {
-    var $label = $('<label></label>', { for: 'passphrase' }).text(options.promptText);
-    var $passphrase = $('<input>', { id: 'passphrase' });
-    var $submit = $('<button></button>').text(options.submitText);
-    var $wrapper = $('<p></p>', { class: 'passphrase-wrapper' }).append($label, $passphrase, $submit);
-    this._modal.find('.slide-modal-body').html($wrapper);
-    $submit.on('click', function () {
-      cb($passphrase.val());
-    });
-  },
-
-  insertVendorForm: function(form, vendor, onClick) {
-    var modal = this.prepareModal('Your Forms');
-    var list = modal.find('.form-list');
-    var li = $("<li></li>");
-    li.click(function(evt) {
-      onClick(form);
-    });
-    li.text(form.name);
-    list.prepend(li);
-  },
-
-  presentVendorForms: function(forms, vendor, onCreate, onClick) {
-    var modal = this.prepareModal('Your Forms');
-    modal.toggle();
-    var list = $("<ul class='form-list'></ul>");
-    modal.append(list);
-    var addBtn = $('<a href="#">Add</a>');
-    modal.find('.slide-modal-action').append(addBtn);
-    addBtn.click(function(evt) {
-      evt.preventDefault();
-      onCreate();
-    });
-    forms.forEach(function(form) {
-      var li = $("<li></li>");
-      li.click(function(evt) {
-        onClick(form);
-      });
-      li.text(form.name);
-      list.append(li);
-    })
-  },
-
-  presentFormsModal: function(forms, user, cb) {
-    var modal = this.prepareModal('Your Forms');
-    modal.toggle();
-    var list = $("<ul class='form-list'></ul>");
-    modal.append(list);
-    forms.forEach(function(form) {
-      var li = $("<li></li>");
-      li.click(function(evt) {
-        Slide.presentModalForm(form, user.profile, cb);
-      });
-      li.text(form.name);
-      list.append(li);
-    })
-  },
-
-  presentModalForm: function (vendorForm, userData, cb) {
-      var identifiers = vendorForm.fields;
-      var modal = this.prepareModal();
-      this.Form.createFromIdentifiers(modal.find('.slide-modal-body'), identifiers, function (form) {
-        form.build(userData, {
-          onSubmit: function () {
-            cb(vendorForm, form, form.getUserData(), form.getPatchedUserData());
-          }
-        });
-        modal.show();
-        $(window).trigger('resize');
-    });
-  },
-
-  presentModalFormWithIdentifiers: function (identifiers, userData, cb) {
-      var modal = this.prepareModal();
-      this.Form.createFromIdentifiers(modal.find('.slide-modal-body'), identifiers, function (form) {
-        form.build(userData, {
-          onSubmit: function () {
-            cb(form);
-          }
-        });
-        modal.show();
-        $(window).trigger('resize');
-    });
-  }
-};
-
-exports["default"] = Slide;
-window.Slide = Slide;
-},{"./slide/actor":2,"./slide/block":4,"./slide/conversation":5,"./slide/crypto":6,"./slide/form":7,"./slide/user":9,"./slide/vendor":12,"./slide/vendor-form":10,"./slide/vendor-user":11}],2:[function(require,module,exports){
-"use strict";
-var API = require("./api")["default"];
-var Crypto = require("./crypto")["default"];
+var API = require("../utils/api")["default"];
+var Crypto = require("../utils/crypto")["default"];
 var Conversation = require("./conversation")["default"];
 
 function Actor() {
@@ -30880,60 +30737,9 @@ Actor.prototype.listen = function(cb) {
 };
 
 exports["default"] = Actor;
-},{"./api":3,"./conversation":5,"./crypto":6}],3:[function(require,module,exports){
+},{"../utils/api":9,"../utils/crypto":10,"./conversation":3}],2:[function(require,module,exports){
 "use strict";
-var HOST = 'api-sandbox.slide.life';
-
-exports["default"] = {
-  endpoint: function(/* protocol, */ path) {
-    if (arguments.length > 1) {
-      return arguments[0] + HOST + arguments[1];
-    } else {
-      return 'http://' + HOST + path;
-    }
-  },
-
-  enableJSON: function (options) {
-    if (options.data) { options.data = JSON.stringify(options.data); }
-    options.contentType = 'application/json; charset=utf-8';
-    options.dataType = 'json';
-  },
-
-  get: function (path, options) {
-    options.url = this.endpoint(path);
-    options.type = 'GET';
-    options.dataType = 'json';
-    $.ajax(options);
-  },
-
-  post: function (path, options) {
-    options.url = this.endpoint(path);
-    options.type = 'POST';
-    this.enableJSON(options);
-    $.ajax(options);
-  },
-
-  put: function (path, options) {
-    options.url = this.endpoint(path);
-    options.type = 'PUT';
-    this.enableJSON(options);
-    $.ajax(options);
-  },
-
-  patch: function (path, options) {
-    options.url = this.endpoint(path);
-    options.type = 'PATCH';
-    this.enableJSON(options);
-    $.ajax(options);
-  },
-
-  socket: function (path) {
-    return new WebSocket(this.endpoint('ws://', path));
-  }
-};
-},{}],4:[function(require,module,exports){
-"use strict";
-var API = require("./api")["default"];
+var API = require("../utils/api")["default"];
 
 var Block = {
   CACHED_BLOCKS: {},
@@ -31126,10 +30932,10 @@ var Block = {
 };
 
 exports["default"] = Block;
-},{"./api":3}],5:[function(require,module,exports){
+},{"../utils/api":9}],3:[function(require,module,exports){
 "use strict";
-var API = require("./api")["default"];
-var Crypto = require("./crypto")["default"];
+var API = require("../utils/api")["default"];
+var Crypto = require("../utils/crypto")["default"];
 
 var Conversation = function(upstream, downstream, cb) {
   this.symmetricKey = Crypto.AES.generateKey();
@@ -31205,7 +31011,639 @@ Conversation.prototype.submit = function(uuid, fields) {
 };
 
 exports["default"] = Conversation;
-},{"./api":3,"./crypto":6}],6:[function(require,module,exports){
+},{"../utils/api":9,"../utils/crypto":10}],4:[function(require,module,exports){
+"use strict";
+var API = require("../utils/api")["default"];
+var Crypto = require("../utils/crypto")["default"];
+var Storage = require("../utils/storage")["default"];
+
+var User = function(number, pub, priv, key) {
+  this.number = number;
+  this.publicKey = pub;
+  this.privateKey = priv;
+  this.symmetricKey = key;
+};
+
+User.prototype.getId = function() {
+  return this.number;
+};
+User.prototype.getDevice = function() {
+  return { type: 'user', number: this.getId(), key: this.publicKey };
+};
+User.serializeProfile = function(patch) {
+  var prepped = {};
+  for( var k in patch ) {
+    prepped[k.replace(/\./g, '/')] = JSON.stringify(patch[k]);
+  }
+  return prepped;
+};
+User.deserializeProfile = function(patch) {
+  var prepped = {};
+  for( var k in patch ) {
+    prepped[k.replace(/\//g, '.')] = JSON.parse(patch[k]);
+  }
+  return prepped;
+};
+
+User.prompt = function(cb) {
+  var user = new this();
+  var form = $('<form><input type="text"><input type="submit" value="Send"></form>');
+  $('#modal .modal-body').append(form);
+  form.submit(function(evt) {
+    evt.preventDefault();
+    var number = $(this).find('[type=text]').val();
+    API.get('/users/' + number + '/public_key', {
+      success: function(resp) {
+        var key = resp.public_key;
+        user.number = number;
+        user.symmetricKey = key;
+        cb.call(user, number, key);
+      }
+    });
+  });
+  $('#modal').modal('toggle');
+  return user;
+};
+
+User.fromObject = function(obj) {
+  return new this(obj.number, obj.publicKey, obj.privateKey, obj.symmetricKey);
+};
+
+User.prototype.persist = function() {
+  var obj = {
+    number: this.number,
+    publicKey: this.publicKey,
+    privateKey: this.privateKey,
+    symmetricKey: this.symmetricKey
+  };
+  Storage.persist("user", obj);
+};
+
+User.prototype.loadRelationships = function(success) {
+  var self = this;
+  API.get('/users/' + this.number + '/vendor_users', {
+    success: function (encryptedUuids) {
+      var uuids = encryptedUuids.map(function(encryptedUuid) {
+        return Crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
+      });
+      var vendorUsers = uuids.map(function(uuid) {
+        return Slide.VendorUser.new(uuid);
+      });
+      success(vendorUsers);
+    }
+  });
+};
+
+User.loadFromStorage = function (success, fail) {
+  Storage.access('user', function(user) {
+    if( Object.keys(user).length > 0 ) {
+      user = User.fromObject(user);
+      user.loadRelationships(function(relationships) {
+        user.relationships = relationships;
+        success(user);
+      });
+    } else {
+      fail(success);
+    }
+  });
+};
+
+User.load = function(number, cb) {
+  this.loadFromStorage(cb, function () {
+    this.register(number, cb);
+  });
+};
+
+User.register = function(number, cb, fail) {
+  var keys = Crypto.generateKeysSync();
+  var user = new User();
+  var symmetricKey = Crypto.AES.generateKey();
+  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
+  user.symmetricKey = symmetricKey;
+  user.publicKey = keys.publicKey;
+  user.privateKey = keys.privateKey;
+  user.number = number;
+  API.post('/users', {
+    data: {
+      key: Crypto.AES.prettyKey(key),
+      public_key: Crypto.AES.prettyKey(keys.publicKey),
+      user: number
+    },
+    success: function (u) {
+      user.id = u.id;
+      cb && cb(user);
+    },
+    failure: function(error) {
+      fail(error);
+    }
+  });
+};
+
+User.prototype.decryptData = function(data) {
+  return Crypto.AES.decryptData(data, this.symmetricKey);
+};
+User.prototype.decrypt = function(data) {
+  return Crypto.AES.decrypt(data, this.symmetricKey);
+};
+
+User.prototype.encryptData = function(data) {
+  return Crypto.AES.encryptData(data, this.symmetricKey);
+};
+User.prototype.encrypt = function(data) {
+  return Crypto.AES.encrypt(data, this.symmetricKey);
+};
+
+User.prototype.getProfile = function(cb) {
+  var self = this;
+  API.get('/users/' + this.number + '/profile', {
+    success: function(data) {
+      cb(self.decryptData(data));
+    }
+  });
+};
+
+User.prototype.patchProfile = function(patch, cb) {
+  var self = this;
+  API.patch('/users/' + this.number + '/profile', {
+    data: { patch: this.encryptData(patch) },
+    success: function (user) {
+      cb && cb(self.decryptData(user.profile));
+    }
+  });
+};
+
+User.prototype.listen = function(cb) {
+  var socket = API.socket('/users/' + this.number + '/listen');
+  var self = this;
+  socket.onmessage = function (event) {
+    var message = JSON.parse(event.data);
+    if (message.verb === 'verb_request') {
+      cb(message.payload.blocks, message.payload.conversation);
+    } else {
+      var data = message.payload.fields;
+      cb(Crypto.AES.decryptData(data, self.symmetricKey));
+    }
+  };
+};
+
+User.prototype.requestPrivateKey = function(cb) {
+  var actor = new Slide.Actor();
+  var self = this;
+  actor.openRequest(['private-key'], this.number, this.symmetricKey, function(fields) {
+    cb.call(self, fields['private-key']);
+  });
+};
+
+exports["default"] = User;
+},{"../utils/api":9,"../utils/crypto":10,"../utils/storage":11}],5:[function(require,module,exports){
+"use strict";
+var API = require("../utils/api")["default"];
+
+var VendorForm = function(name, fields, vendorId) {
+  this.name = name;
+  this.fields = fields;
+  this.vendor = vendorId;
+};
+
+VendorForm.get = function(vendor, id, cb) {
+  API.get('/vendors/'+vendor.id+'/vendor_forms/' + id, {
+    data: { checksum: vendor.checksum },
+    success: function(vendor) {
+      cb(VendorForm.fromObject(vendor));
+    }
+  });
+};
+
+VendorForm.prototype.initialize = function(cb) {
+  // TODO: perhaps allow a vendor form to be posted after the fact
+};
+
+VendorForm.fromObject = function(obj) {
+  var form = new VendorForm(obj.name, obj.form_fields, obj.vendor_id);
+  form.vendor_key = obj.vendor_key;
+  form.id = obj.id;
+  form.responses = obj.responses;
+  return form;
+};
+
+exports["default"] = VendorForm;
+},{"../utils/api":9}],6:[function(require,module,exports){
+"use strict";
+var API = require("../utils/api")["default"];
+var Crypto = require("../utils/crypto")["default"];
+var Storage = require("../utils/storage")["default"];
+var User = require("./user")["default"];
+
+var VendorUser = function(uuid) {
+  this.uuid = uuid;
+};
+
+VendorUser.prototype.fromObject = function(obj) {
+  for( var k in obj )
+    this[k] = obj[k];
+};
+
+VendorUser.prototype.load = function(cb) {
+  var self = this;
+  API.get('/vendor_users/' + this.uuid,
+    { success: function(vendor) {
+      self.fromObject(vendor);
+      cb(self);
+    }});
+};
+
+VendorUser.prototype.getVendorKey = function(privateKey) {
+  return Crypto.decrypt(this.vendorKey, privateKey);
+};
+
+VendorUser.load = function(fail, success) {
+  Storage.access("vendor-user", function(vendorUser) {
+    if( Object.keys(vendorUser).length > 0 ) {
+      vendorUser = new VendorUser(vendorUser.uuid).fromObject(vendorUser);
+      success(vendorUser);
+    } else {
+      fail(success);
+    }
+  });
+};
+VendorUser.persist = function(vendorUser) {
+  Storage.persist("vendor-user", vendorUser);
+};
+
+VendorUser.createRelationship = function(user, vendor, cb) {
+  var keys = Crypto.generateKeysSync();
+
+  var key = Crypto.AES.generateKey();
+  var userKey = Crypto.AES.encryptKey(key, user.publicKey);
+  var vendorKey = Crypto.AES.encryptKey(key, vendor.publicKey);
+  var checksum = Crypto.encrypt('', user.publicKey);
+
+  API.post('/vendors/'+vendor.id+'/vendor_users', {
+    data: {
+      key: Crypto.AES.prettyKey(userKey),
+      public_key: user.publicKey,
+      checksum: Crypto.prettyPayload(checksum),
+      vendor_key: Crypto.prettyPayload(vendorKey)
+    },
+    success: function(resp) {
+      resp.checksum = checksum;
+      resp.privateKey = user.privateKey;
+      resp.generatedKey = key;
+      resp.vendorKey = vendorKey;
+
+      var vendorUser = new VendorUser(resp.uuid);
+      vendorUser.fromObject(resp);
+      // VendorUser.persist(vendorUser);
+      cb && cb(vendorUser);
+    }
+  });
+};
+
+VendorUser.prototype.loadVendorForms = function(cb) {
+  API.get('/vendor_users/' + this.uuid + '/vendor_forms', {
+    success: function(vendorForms) {
+      var vendorFormHash = {};
+      vendorForms.forEach(function(vf) {
+        var vendorForm = Slide.VendorForm.fromObject(vf);
+        vendorFormHash[vendorForm.name] = vendorForm;
+      });
+      cb(vendorFormHash);
+    }
+  });
+};
+
+$.extend(VendorUser.prototype, User.prototype);
+
+exports["default"] = VendorUser;
+},{"../utils/api":9,"../utils/crypto":10,"../utils/storage":11,"./user":4}],7:[function(require,module,exports){
+"use strict";
+var API = require("../utils/api")["default"];
+var Crypto = require("../utils/crypto")["default"];
+var Storage = require("../utils/storage")["default"];
+var User = require("./user")["default"];
+
+var Vendor = function (name, chk, id, keys) {
+  if (keys) {
+    this.publicKey = keys.pub;
+    this.privateKey = keys.priv;
+    this.symmetricKey = keys.sym;
+    this.checksum = chk || Crypto.encrypt('', keys.pub);
+  }
+  this.name = name;
+  this.id = id;
+};
+
+$.extend(Vendor.prototype, User.prototype);
+
+Vendor.prototype.persist = function () {
+  var obj = {
+    number: this.number,
+    publicKey: this.publicKey,
+    privateKey: this.privateKey,
+    symmetricKey: this.symmetricKey,
+    checksum: this.checksum,
+    id: this.id
+  };
+  Storage.persist("vendor", obj);
+};
+
+Vendor.fromObject = function (obj) {
+  var keys = { pub: obj.publicKey, priv: obj.privateKey, sym: obj.symmetricKey };
+  var vendor;
+  if( keys.pub || keys.priv || keys.sym ) {
+    vendor = new Vendor(obj.name, obj.checksum, obj.id, keys);
+  } else {
+    vendor = new Vendor(obj.name, obj.checksum, obj.id);
+  }
+  vendor.invite = obj.invite_code;
+  return vendor;
+};
+
+Vendor.load = function (fail, success) {
+  Storage.access("vendor", function(vendor) {
+    if( Object.keys(vendor).length > 0 ) {
+      success(Vendor.fromObject(vendor));
+    } else {
+      fail(success);
+    }
+  });
+};
+
+Vendor.invite = function (name, cb) {
+  API.post('/admin/vendors', {
+    data: { name: name },
+    success: function (vendor) {
+      cb(Vendor.fromObject(vendor));
+    }
+  });
+};
+
+Vendor.prototype.register = function (cb) {
+  var invite = this.invite, id = this.id, keys = Crypto.generateKeysSync();
+  var symmetricKey = Crypto.AES.generateKey();
+  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
+  this.publicKey = keys.publicKey;
+  this.privateKey = keys.privateKey;
+  this.symmetricKey = symmetricKey;
+  this.checksum = Crypto.encrypt('', keys.publicKey);
+  var self = this;
+  API.put('/vendors/' + id, {
+    data: {
+      invite_code: invite,
+      key: Crypto.prettyPayload(key),
+      public_key: keys.publicKey,
+      checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum
+    },
+    success: function (v) {
+      self.id = v.id;
+      cb && cb(self);
+    }
+  });
+};
+
+Vendor.prototype.listen = function (cb) {
+  var socket = API.socket('ws://', '/vendors/' + this.number + '/listen');
+  socket.onmessage = function (event) {
+    console.log('refresh');
+  };
+};
+
+Vendor.prototype.createForm = function (name, formFields, cb) {
+  API.post('/vendors/' + this.id + '/vendor_forms', {
+    data: {
+      name: name,
+      form_fields: formFields,
+      checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum
+    },
+    success: function (form) {
+      cb && cb(Slide.VendorForm.fromObject(form));
+    }
+  });
+};
+
+Vendor.prototype.loadForms = function(cb) {
+  API.get('/vendors/' + this.id + '/vendor_forms', {
+    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
+    success: function(forms) {
+      cb(forms);
+    }
+  });
+};
+
+Vendor.prototype.getProfile = function(success, fail) {
+  API.get('/vendors/' + this.id + '/profile', {
+    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
+    success: function(profile) {
+      success(profile);
+    },
+    fail: fail
+  });
+};
+
+Vendor.prototype.getUsers = function(cb) {
+  API.get('/vendors/' + this.id + '/vendor_users', {
+    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
+    success: function(users) {
+      cb(users);
+    }
+  });
+};
+
+exports["default"] = Vendor;
+},{"../utils/api":9,"../utils/crypto":10,"../utils/storage":11,"./user":4}],8:[function(require,module,exports){
+"use strict";
+var Actor = require("./models/actor")["default"];
+var Conversation = require("./models/conversation")["default"];
+var User = require("./models/user")["default"];
+var Block = require("./models/block")["default"];
+var Vendor = require("./models/vendor")["default"];
+var VendorForm = require("./models/vendor-form")["default"];
+var VendorUser = require("./models/vendor-user")["default"];
+var Form = require("./views/form")["default"];
+
+var Slide = {
+  DEFAULT_ORGANIZATION: 'slide.life',
+
+  Actor: Actor,
+  Conversation: Conversation,
+  User: User,
+  Vendor: Vendor,
+  VendorForm: VendorForm,
+  VendorUser: VendorUser,
+  Block: Block,
+  Form: Form,
+
+  extractBlocks: function (form) {
+    return form.find('*').map(function () {
+      return $(this).attr('data-slide');
+    }).toArray();
+  },
+
+  populateFields: function (form, fields, sec) {
+    form.find('*').each(function () {
+      var field = $(this).attr('data-slide');
+      if (!!field && fields[field]) {
+        $(this).val(fields[field]);
+      }
+    });
+  },
+
+  prepareModal: function (title) {
+    if (!this._modal) {
+      this._modal = $('<div class="slide-modal"></div>');
+      var header = $('<div class="slide-modal-header"></div>').append('<div class="slide-logo"></div>', '<div class="slide-modal-action"></div>');
+      this._modal.append(header, '<div class="slide-modal-body"></div>');
+      this._modal.appendTo($('body'));
+    }
+    return this._modal;
+  },
+
+  prepareModalWithPassphrase: function (title, options, cb) {
+    this.prepareModal();
+    this.presentInputPromptInModal(options, cb);
+    return this._modal;
+  },
+
+  presentInputPromptInModal: function (options, cb) {
+    var $label = $('<label></label>', { for: 'passphrase' }).text(options.promptText);
+    var $passphrase = $('<input>', { id: 'passphrase' });
+    var $submit = $('<button></button>').text(options.submitText);
+    var $wrapper = $('<p></p>', { class: 'passphrase-wrapper' }).append($label, $passphrase, $submit);
+    this._modal.find('.slide-modal-body').html($wrapper);
+    $submit.on('click', function () {
+      cb($passphrase.val());
+    });
+  },
+
+  insertVendorForm: function(form, vendor, onClick) {
+    var modal = this.prepareModal('Your Forms');
+    var list = modal.find('.form-list');
+    var li = $("<li></li>");
+    li.click(function(evt) {
+      onClick(form);
+    });
+    li.text(form.name);
+    list.prepend(li);
+  },
+
+  presentVendorForms: function(forms, vendor, onCreate, onClick) {
+    var modal = this.prepareModal('Your Forms');
+    modal.toggle();
+    var list = $("<ul class='form-list'></ul>");
+    modal.append(list);
+    var addBtn = $('<a href="#">Add</a>');
+    modal.find('.slide-modal-action').append(addBtn);
+    addBtn.click(function(evt) {
+      evt.preventDefault();
+      onCreate();
+    });
+    forms.forEach(function(form) {
+      var li = $("<li></li>");
+      li.click(function(evt) {
+        onClick(form);
+      });
+      li.text(form.name);
+      list.append(li);
+    })
+  },
+
+  presentFormsModal: function(forms, user, cb) {
+    var modal = this.prepareModal('Your Forms');
+    modal.toggle();
+    var list = $("<ul class='form-list'></ul>");
+    modal.append(list);
+    forms.forEach(function(form) {
+      var li = $("<li></li>");
+      li.click(function(evt) {
+        Slide.presentModalForm(form, user.profile, cb);
+      });
+      li.text(form.name);
+      list.append(li);
+    })
+  },
+
+  presentModalForm: function (vendorForm, userData, cb) {
+      var identifiers = vendorForm.fields;
+      var modal = this.prepareModal();
+      this.Form.createFromIdentifiers(modal.find('.slide-modal-body'), identifiers, function (form) {
+        form.build(userData, {
+          onSubmit: function () {
+            cb(vendorForm, form, form.getUserData(), form.getPatchedUserData());
+          }
+        });
+        modal.show();
+        $(window).trigger('resize');
+    });
+  },
+
+  presentModalFormWithIdentifiers: function (identifiers, userData, cb) {
+      var modal = this.prepareModal();
+      this.Form.createFromIdentifiers(modal.find('.slide-modal-body'), identifiers, function (form) {
+        form.build(userData, {
+          onSubmit: function () {
+            cb(form);
+          }
+        });
+        modal.show();
+        $(window).trigger('resize');
+    });
+  }
+};
+
+exports["default"] = Slide;
+window.Slide = Slide;
+},{"./models/actor":1,"./models/block":2,"./models/conversation":3,"./models/user":4,"./models/vendor":7,"./models/vendor-form":5,"./models/vendor-user":6,"./views/form":12}],9:[function(require,module,exports){
+"use strict";
+var HOST = 'api-sandbox.slide.life';
+
+exports["default"] = {
+  endpoint: function(/* protocol, */ path) {
+    if (arguments.length > 1) {
+      return arguments[0] + HOST + arguments[1];
+    } else {
+      return 'http://' + HOST + path;
+    }
+  },
+
+  enableJSON: function (options) {
+    if (options.data) { options.data = JSON.stringify(options.data); }
+    options.contentType = 'application/json; charset=utf-8';
+    options.dataType = 'json';
+  },
+
+  get: function (path, options) {
+    options.url = this.endpoint(path);
+    options.type = 'GET';
+    options.dataType = 'json';
+    $.ajax(options);
+  },
+
+  post: function (path, options) {
+    options.url = this.endpoint(path);
+    options.type = 'POST';
+    this.enableJSON(options);
+    $.ajax(options);
+  },
+
+  put: function (path, options) {
+    options.url = this.endpoint(path);
+    options.type = 'PUT';
+    this.enableJSON(options);
+    $.ajax(options);
+  },
+
+  patch: function (path, options) {
+    options.url = this.endpoint(path);
+    options.type = 'PATCH';
+    this.enableJSON(options);
+    $.ajax(options);
+  },
+
+  socket: function (path) {
+    return new WebSocket(this.endpoint('ws://', path));
+  }
+};
+},{}],10:[function(require,module,exports){
 "use strict";
 var Crypto = {
   generateKeys: function (cb) {
@@ -31374,9 +31812,64 @@ var Crypto = {
 };
 
 exports["default"] = Crypto;
-},{}],7:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
-var Block = require("./block")["default"];
+var API = require("./api")["default"];
+
+var cbs = {};
+var isReady = false;
+var queue = [];
+
+$(window).on('message', function(evt) {
+  var data = evt.message || evt.data;
+  if(data.status) {
+    isReady = true;
+    queue.forEach(process);
+    return;
+  }
+  cbs[data.channel](data.value);
+  delete cbs[data.channel];
+}, false);
+
+var runner = $("<iframe>", {
+  src: 'bower_components/slide.js/dist/views/auth.html'
+});
+
+$("body").append(runner);
+runner.hide();
+var process = function(msg) {
+  runner[0].contentWindow.postMessage(msg, "*");
+};
+
+var Storage = {
+  accessor: function(payload) {
+    if( isReady )
+      process(payload);
+    else
+      queue.push(payload);
+  },
+  persist: function(key, value) {
+    this.accessor({
+      verb: "set",
+      key: key,
+      value: value
+    });
+  },
+  access: function(key, cb) {
+    var channel = Math.floor(Math.random() * 10000);
+    cbs[channel] = cb;
+    this.accessor({
+      verb: "get",
+      key: key,
+      channel: channel
+    });
+  }
+};
+
+exports["default"] = Storage;
+},{"./api":9}],12:[function(require,module,exports){
+"use strict";
+var Block = require("../models/block")["default"];
 
 function deepCompare () {
   var i, l, leftChain, rightChain;
@@ -31775,499 +32268,5 @@ Form.prototype.getStringifiedPatchedUserData = function () {
 };
 
 exports["default"] = Form;
-},{"./block":4}],8:[function(require,module,exports){
-"use strict";
-var API = require("./api")["default"];
-
-var cbs = {};
-var isReady = false;
-var queue = [];
-
-$(window).on('message', function(evt) {
-  var data = evt.message || evt.data;
-  if(data.status) {
-    isReady = true;
-    queue.forEach(process);
-    return;
-  }
-  cbs[data.channel](data.value);
-  delete cbs[data.channel];
-}, false);
-
-var runner = $("<iframe>", {
-  src: 'bower_components/slide.js/dist/views/auth.html'
-});
-
-$("body").append(runner);
-runner.hide();
-var process = function(msg) {
-  runner[0].contentWindow.postMessage(msg, "*");
-};
-
-var Storage = {
-  accessor: function(payload) {
-    if( isReady )
-      process(payload);
-    else
-      queue.push(payload);
-  },
-  persist: function(key, value) {
-    this.accessor({
-      verb: "set",
-      key: key,
-      value: value
-    });
-  },
-  access: function(key, cb) {
-    var channel = Math.floor(Math.random() * 10000);
-    cbs[channel] = cb;
-    this.accessor({
-      verb: "get",
-      key: key,
-      channel: channel
-    });
-  }
-};
-
-exports["default"] = Storage;
-},{"./api":3}],9:[function(require,module,exports){
-"use strict";
-var API = require("./api")["default"];
-var Crypto = require("./crypto")["default"];
-var Storage = require("./storage")["default"];
-
-var User = function(number, pub, priv, key) {
-  this.number = number;
-  this.publicKey = pub;
-  this.privateKey = priv;
-  this.symmetricKey = key;
-};
-
-User.prototype.getId = function() {
-  return this.number;
-};
-User.prototype.getDevice = function() {
-  return { type: 'user', number: this.getId(), key: this.publicKey };
-};
-User.serializeProfile = function(patch) {
-  var prepped = {};
-  for( var k in patch ) {
-    prepped[k.replace(/\./g, '/')] = JSON.stringify(patch[k]);
-  }
-  return prepped;
-};
-User.deserializeProfile = function(patch) {
-  var prepped = {};
-  for( var k in patch ) {
-    prepped[k.replace(/\//g, '.')] = JSON.parse(patch[k]);
-  }
-  return prepped;
-};
-
-User.prompt = function(cb) {
-  var user = new this();
-  var form = $('<form><input type="text"><input type="submit" value="Send"></form>');
-  $('#modal .modal-body').append(form);
-  form.submit(function(evt) {
-    evt.preventDefault();
-    var number = $(this).find('[type=text]').val();
-    API.get('/users/' + number + '/public_key', {
-      success: function(resp) {
-        var key = resp.public_key;
-        user.number = number;
-        user.symmetricKey = key;
-        cb.call(user, number, key);
-      }
-    });
-  });
-  $('#modal').modal('toggle');
-  return user;
-};
-
-User.fromObject = function(obj) {
-  return new this(obj.number, obj.publicKey, obj.privateKey, obj.symmetricKey);
-};
-
-User.prototype.persist = function() {
-  var obj = {
-    number: this.number,
-    publicKey: this.publicKey,
-    privateKey: this.privateKey,
-    symmetricKey: this.symmetricKey
-  };
-  Storage.persist("user", obj);
-};
-
-User.prototype.loadRelationships = function(success) {
-  var self = this;
-  API.get('/users/' + this.number + '/vendor_users', {
-    success: function (encryptedUuids) {
-      var uuids = encryptedUuids.map(function(encryptedUuid) {
-        return Crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
-      });
-      var vendorUsers = uuids.map(function(uuid) {
-        return Slide.VendorUser.new(uuid);
-      });
-      success(vendorUsers);
-    }
-  });
-};
-
-User.loadFromStorage = function (success, fail) {
-  Storage.access('user', function(user) {
-    if( Object.keys(user).length > 0 ) {
-      user = User.fromObject(user);
-      user.loadRelationships(function(relationships) {
-        user.relationships = relationships;
-        success(user);
-      });
-    } else {
-      fail(success);
-    }
-  });
-};
-
-User.load = function(number, cb) {
-  this.loadFromStorage(cb, function () {
-    this.register(number, cb);
-  });
-};
-
-User.register = function(number, cb, fail) {
-  var keys = Crypto.generateKeysSync();
-  var user = new User();
-  var symmetricKey = Crypto.AES.generateKey();
-  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
-  user.symmetricKey = symmetricKey;
-  user.publicKey = keys.publicKey;
-  user.privateKey = keys.privateKey;
-  user.number = number;
-  API.post('/users', {
-    data: {
-      key: Crypto.AES.prettyKey(key),
-      public_key: Crypto.AES.prettyKey(keys.publicKey),
-      user: number
-    },
-    success: function (u) {
-      user.id = u.id;
-      cb && cb(user);
-    },
-    failure: function(error) {
-      fail(error);
-    }
-  });
-};
-
-User.prototype.decryptData = function(data) {
-  return Crypto.AES.decryptData(data, this.symmetricKey);
-};
-User.prototype.decrypt = function(data) {
-  return Crypto.AES.decrypt(data, this.symmetricKey);
-};
-
-User.prototype.encryptData = function(data) {
-  return Crypto.AES.encryptData(data, this.symmetricKey);
-};
-User.prototype.encrypt = function(data) {
-  return Crypto.AES.encrypt(data, this.symmetricKey);
-};
-
-User.prototype.getProfile = function(cb) {
-  var self = this;
-  API.get('/users/' + this.number + '/profile', {
-    success: function(data) {
-      cb(self.decryptData(data));
-    }
-  });
-};
-
-User.prototype.patchProfile = function(patch, cb) {
-  var self = this;
-  API.patch('/users/' + this.number + '/profile', {
-    data: { patch: this.encryptData(patch) },
-    success: function (user) {
-      cb && cb(self.decryptData(user.profile));
-    }
-  });
-};
-
-User.prototype.listen = function(cb) {
-  var socket = API.socket('/users/' + this.number + '/listen');
-  var self = this;
-  socket.onmessage = function (event) {
-    var message = JSON.parse(event.data);
-    if (message.verb === 'verb_request') {
-      cb(message.payload.blocks, message.payload.conversation);
-    } else {
-      var data = message.payload.fields;
-      cb(Crypto.AES.decryptData(data, self.symmetricKey));
-    }
-  };
-};
-
-User.prototype.requestPrivateKey = function(cb) {
-  var actor = new Slide.Actor();
-  var self = this;
-  actor.openRequest(['private-key'], this.number, this.symmetricKey, function(fields) {
-    cb.call(self, fields['private-key']);
-  });
-};
-
-exports["default"] = User;
-},{"./api":3,"./crypto":6,"./storage":8}],10:[function(require,module,exports){
-"use strict";
-var API = require("./api")["default"];
-
-var VendorForm = function(name, fields, vendorId) {
-  this.name = name;
-  this.fields = fields;
-  this.vendor = vendorId;
-};
-
-VendorForm.get = function(vendor, id, cb) {
-  API.get('/vendors/'+vendor.id+'/vendor_forms/' + id, {
-    data: { checksum: vendor.checksum },
-    success: function(vendor) {
-      cb(VendorForm.fromObject(vendor));
-    }
-  });
-};
-
-VendorForm.prototype.initialize = function(cb) {
-  // TODO: perhaps allow a vendor form to be posted after the fact
-};
-
-VendorForm.fromObject = function(obj) {
-  var form = new VendorForm(obj.name, obj.form_fields, obj.vendor_id);
-  form.vendor_key = obj.vendor_key;
-  form.id = obj.id;
-  form.responses = obj.responses;
-  return form;
-};
-
-exports["default"] = VendorForm;
-},{"./api":3}],11:[function(require,module,exports){
-"use strict";
-var API = require("./api")["default"];
-var Crypto = require("./crypto")["default"];
-var Storage = require("./storage")["default"];
-var User = require("./user")["default"];
-
-var VendorUser = function(uuid) {
-  this.uuid = uuid;
-};
-
-VendorUser.prototype.fromObject = function(obj) {
-  for( var k in obj )
-    this[k] = obj[k];
-};
-
-VendorUser.prototype.load = function(cb) {
-  var self = this;
-  API.get('/vendor_users/' + this.uuid,
-    { success: function(vendor) {
-      self.fromObject(vendor);
-      cb(self);
-    }});
-};
-
-VendorUser.prototype.getVendorKey = function(privateKey) {
-  return Crypto.decrypt(this.vendorKey, privateKey);
-};
-
-VendorUser.load = function(fail, success) {
-  Storage.access("vendor-user", function(vendorUser) {
-    if( Object.keys(vendorUser).length > 0 ) {
-      vendorUser = new VendorUser(vendorUser.uuid).fromObject(vendorUser);
-      success(vendorUser);
-    } else {
-      fail(success);
-    }
-  });
-};
-VendorUser.persist = function(vendorUser) {
-  Storage.persist("vendor-user", vendorUser);
-};
-
-VendorUser.createRelationship = function(user, vendor, cb) {
-  var keys = Crypto.generateKeysSync();
-
-  var key = Crypto.AES.generateKey();
-  var userKey = Crypto.AES.encryptKey(key, user.publicKey);
-  var vendorKey = Crypto.AES.encryptKey(key, vendor.publicKey);
-  var checksum = Crypto.encrypt('', user.publicKey);
-
-  API.post('/vendors/'+vendor.id+'/vendor_users', {
-    data: {
-      key: Crypto.AES.prettyKey(userKey),
-      public_key: user.publicKey,
-      checksum: Crypto.prettyPayload(checksum),
-      vendor_key: Crypto.prettyPayload(vendorKey)
-    },
-    success: function(resp) {
-      resp.checksum = checksum;
-      resp.privateKey = user.privateKey;
-      resp.generatedKey = key;
-      resp.vendorKey = vendorKey;
-
-      var vendorUser = new VendorUser(resp.uuid);
-      vendorUser.fromObject(resp);
-      // VendorUser.persist(vendorUser);
-      cb && cb(vendorUser);
-    }
-  });
-};
-
-VendorUser.prototype.loadVendorForms = function(cb) {
-  API.get('/vendor_users/' + this.uuid + '/vendor_forms', {
-    success: function(vendorForms) {
-      var vendorFormHash = {};
-      vendorForms.forEach(function(vf) {
-        var vendorForm = Slide.VendorForm.fromObject(vf);
-        vendorFormHash[vendorForm.name] = vendorForm;
-      });
-      cb(vendorFormHash);
-    }
-  });
-};
-
-$.extend(VendorUser.prototype, User.prototype);
-
-exports["default"] = VendorUser;
-},{"./api":3,"./crypto":6,"./storage":8,"./user":9}],12:[function(require,module,exports){
-"use strict";
-var API = require("./api")["default"];
-var User = require("./user")["default"];
-var Crypto = require("./crypto")["default"];
-var Storage = require("./storage")["default"];
-
-var Vendor = function (name, chk, id, keys) {
-  if (keys) {
-    this.publicKey = keys.pub;
-    this.privateKey = keys.priv;
-    this.symmetricKey = keys.sym;
-    this.checksum = chk || Crypto.encrypt('', keys.pub);
-  }
-  this.name = name;
-  this.id = id;
-};
-
-$.extend(Vendor.prototype, User.prototype);
-
-Vendor.prototype.persist = function () {
-  var obj = {
-    number: this.number,
-    publicKey: this.publicKey,
-    privateKey: this.privateKey,
-    symmetricKey: this.symmetricKey,
-    checksum: this.checksum,
-    id: this.id
-  };
-  Storage.persist("vendor", obj);
-};
-
-Vendor.fromObject = function (obj) {
-  var keys = { pub: obj.publicKey, priv: obj.privateKey, sym: obj.symmetricKey };
-  var vendor;
-  if( keys.pub || keys.priv || keys.sym ) {
-    vendor = new Vendor(obj.name, obj.checksum, obj.id, keys);
-  } else {
-    vendor = new Vendor(obj.name, obj.checksum, obj.id);
-  }
-  vendor.invite = obj.invite_code;
-  return vendor;
-};
-
-Vendor.load = function (fail, success) {
-  Storage.access("vendor", function(vendor) {
-    if( Object.keys(vendor).length > 0 ) {
-      success(Vendor.fromObject(vendor));
-    } else {
-      fail(success);
-    }
-  });
-};
-
-Vendor.invite = function (name, cb) {
-  API.post('/admin/vendors', {
-    data: { name: name },
-    success: function (vendor) {
-      cb(Vendor.fromObject(vendor));
-    }
-  });
-};
-
-Vendor.prototype.register = function (cb) {
-  var invite = this.invite, id = this.id, keys = Crypto.generateKeysSync();
-  var symmetricKey = Crypto.AES.generateKey();
-  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
-  this.publicKey = keys.publicKey;
-  this.privateKey = keys.privateKey;
-  this.symmetricKey = symmetricKey;
-  this.checksum = Crypto.encrypt('', keys.publicKey);
-  var self = this;
-  API.put('/vendors/' + id, {
-    data: {
-      invite_code: invite,
-      key: Crypto.prettyPayload(key),
-      public_key: keys.publicKey,
-      checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum
-    },
-    success: function (v) {
-      self.id = v.id;
-      cb && cb(self);
-    }
-  });
-};
-
-Vendor.prototype.listen = function (cb) {
-  var socket = API.socket('ws://', '/vendors/' + this.number + '/listen');
-  socket.onmessage = function (event) {
-    console.log('refresh');
-  };
-};
-
-Vendor.prototype.createForm = function (name, formFields, cb) {
-  API.post('/vendors/' + this.id + '/vendor_forms', {
-    data: {
-      name: name,
-      form_fields: formFields,
-      checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum
-    },
-    success: function (form) {
-      cb && cb(Slide.VendorForm.fromObject(form));
-    }
-  });
-};
-
-Vendor.prototype.loadForms = function(cb) {
-  API.get('/vendors/' + this.id + '/vendor_forms', {
-    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
-    success: function(forms) {
-      cb(forms);
-    }
-  });
-};
-
-Vendor.prototype.getProfile = function(success, fail) {
-  API.get('/vendors/' + this.id + '/profile', {
-    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
-    success: function(profile) {
-      success(profile);
-    },
-    fail: fail
-  });
-};
-
-Vendor.prototype.getUsers = function(cb) {
-  API.get('/vendors/' + this.id + '/vendor_users', {
-    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
-    success: function(users) {
-      cb(users);
-    }
-  });
-};
-
-exports["default"] = Vendor;
-},{"./api":3,"./crypto":6,"./storage":8,"./user":9}]},{},[1])
+},{"../models/block":2}]},{},[8])
 ;
