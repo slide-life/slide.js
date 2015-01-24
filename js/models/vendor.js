@@ -83,7 +83,7 @@ Vendor.prototype.register = function (cb) {
 Vendor.prototype.listen = function (cb) {
   var socket = API.socket('ws://', '/vendors/' + this.number + '/listen');
   socket.onmessage = function (event) {
-    console.log('refresh');
+    cb();
   };
 };
 
@@ -112,19 +112,16 @@ Vendor.prototype.loadForms = function(cb) {
 Vendor.prototype.getProfile = function(success, fail) {
   API.get('/vendors/' + this.id + '/profile', {
     data: { checksum: this.prettyChecksum() },
-    success: function(profile) {
-      success(profile);
-    },
+    success: success,
     fail: fail
   });
 };
 
-Vendor.prototype.getUsers = function(cb) {
+Vendor.prototype.getUsers = function(success, fail) {
   API.get('/vendors/' + this.id + '/vendor_users', {
     data: { checksum: this.prettyChecksum() },
-    success: function(users) {
-      cb(users);
-    }
+    success: function(x) { success(x); },
+    fail: function(x) { fail(x); }
   });
 };
 

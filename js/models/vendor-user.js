@@ -51,7 +51,7 @@ VendorUser.createRelationship = function(user, vendor, cb) {
     data: {
       key: Crypto.AES.prettyKey(userKey),
       public_key: user.publicKey,
-      checksum: Crypto.prettyPayload(checksum),
+      checksum: vendor.prettyChecksum(),
       vendor_key: Crypto.prettyPayload(vendorKey)
     },
     success: function(resp) {
