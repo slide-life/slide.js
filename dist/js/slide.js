@@ -30787,15 +30787,13 @@ window.Slide = Slide;
 "use strict";
 var API = require("./api")["default"];
 var Crypto = require("./crypto")["default"];
+var Conversation = require("./conversation")["default"];
 
-function Actor(name) {
+function Actor() {
   var self = this;
-  if (name) { this.name = name; }
-  Crypto.generateKeys(function(keys) {
-    keys = Crypto.packKeys(keys);
-    self.publicKey = keys.publicKey;
-    self.privateKey = keys.privateKey;
-  });
+  var keys = Crypto.generateKeysSync();
+  self.publicKey = keys.publicKey;
+  self.privateKey = keys.privateKey;
 }
 
 Actor.fromObject = function(obj) {
@@ -30813,10 +30811,19 @@ Actor.prototype.openRequest = function(blocks, downstream, onMessage) {
   }, onMessage);
 };
 
-Actor.prototype.initialize = function(cb) {
+Actor.prototype.register = function(cb) {
+  var self = this;
   API.post('/actors', {
-    data: { key: this.publicKey },
-    success: cb.bind(this)
+    data: { name: this.name, public_key: this.publicKey },
+    success: cb
+  });
+};
+
+Actor.prototype.initialize = function(cb) {
+  var self = this;
+  this.register(function(actor) {
+    self.id = actor.id;
+    cb && cb(self);
   });
 };
 
@@ -30829,7 +30836,7 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
       onMessage(fields);
     });
 
-    var conversation = new Slide.Conversation({
+    var conversation = new Conversation({
       upstream: self.id,
       type: 'actor'
     }, downstream, onCreate);
@@ -30845,25 +30852,32 @@ Actor.prototype.getDevice = function() {
   return { type: 'actor', id: this.getId(), key: this.publicKey };
 };
 
-Actor.prototype.listen = function(cb) {
-  var socket = API.socket('/actors/' + this.id + '/listen');
+Actor.prototype.onmessage = function(message, cb) {
+  if( message.verb === 'verb_request' ) {
+    cb(message.payload.blocks, message.payload.conversation);
+  } else {
+    var data = message.payload.fields;
+    cb(Crypto.AES.decryptData(data, self.key));
+  }
+};
+
+Actor.prototype._listen = function(Socket, cb) {
+  var socket = new Socket(API.endpoint('ws://', '/actors/' + this.id + '/listen'));
   var self = this;
   socket.onmessage = function (event) {
     var message = JSON.parse(event.data);
-    if( message.verb === 'verb_request' ) {
-      cb(message.payload.blocks, message.payload.conversation);
-    } else {
-      var data = message.payload.fields;
-      console.log('dec', self.key);
-      cb(Crypto.AES.decryptData(data, self.key));
-    }
+    self.onmessage(message, cb);
   };
 };
 
+Actor.prototype.listen = function(cb) {
+  this._listen(WebSocket, cb);
+};
+
 exports["default"] = Actor;
-},{"./api":3,"./crypto":6}],3:[function(require,module,exports){
+},{"./api":3,"./conversation":5,"./crypto":6}],3:[function(require,module,exports){
 "use strict";
-var HOST = 'api-sandbox.slide.life';
+var HOST = 'slide-dev.ngrok.com';
 
 exports["default"] = {
   endpoint: function(/* protocol, */ path) {
@@ -30875,7 +30889,6 @@ exports["default"] = {
   },
 
   enableJSON: function (options) {
-    console.log(JSON.stringify(options.data));
     if (options.data) { options.data = JSON.stringify(options.data); }
     options.contentType = 'application/json; charset=utf-8';
     options.dataType = 'json';
@@ -31113,51 +31126,50 @@ exports["default"] = Block;
 var API = require("./api")["default"];
 var Crypto = require("./crypto")["default"];
 
-var Conversation = function(upstream, downstream, cb, sym) {
-  var key = sym || Crypto.AES.generateKey();
-  var obj = {
-    symmetricKey: key,
-    key: Crypto.encryptStringWithPackedKey(key, downstream.key),
-    upstream_type: upstream.type,
-    downstream_type: downstream.type
-  };
+var Conversation = function(upstream, downstream, cb) {
+  this.symmetricKey = Crypto.AES.generateKey();
+  this.key = Crypto.encrypt(this.symmetricKey, downstream.key);
+  this.upstream_type = upstream.type;
+  this.downstream_type = downstream.type;
   var device = downstream.type === 'user' ? 'downstream_number' : 'downstream_id';
   var upDevice = upstream.type === 'user' ? 'upstream_number' : 'upstream_id';
-  obj[device] = downstream.downstream;
-  obj[upDevice] = upstream.upstream;
-  Conversation.FromObject.call(this, obj, cb.bind(this));
+  this[device] = downstream.downstream;
+  this[upDevice] = upstream.upstream;
+  this.initialize(function(conversation) {
+    cb(conversation);
+  });
 };
 
-Conversation.FromObject = function(obj, cb) {
-  this.symmetricKey = obj.symmetricKey;
-  var self = this;
-  var downstream_pack = obj.downstream_type.toLowerCase() === 'user' ? {
-    type: obj.downstream_type.toLowerCase(), number: obj.downstream_number
-  } : {
-    type: obj.downstream_type.toLowerCase(), id: obj.downstream_id
-  };
-  var upstream_pack = obj.upstream_type.toLowerCase() === 'user' ? {
-    type: obj.upstream_type.toLowerCase(), number: obj.upstream_number
-  } : {
-    type: obj.upstream_type.toLowerCase(), id: obj.upstream_id
-  };
+Conversation.fromObject = function(obj, cb) {
+  $.extend(this, obj);
+  this.initialize(cb);
+};
 
+Conversation.prototype.initialize = function(cb) {
+  var downstream_pack = this.downstream_type.toLowerCase() === 'user' ? {
+    type: this.downstream_type.toLowerCase(), number: this.downstream_number
+  } : {
+    type: this.downstream_type.toLowerCase(), id: this.downstream_id
+  };
+  var upstream_pack = this.upstream_type.toLowerCase() === 'user' ? {
+    type: this.upstream_type.toLowerCase(), number: this.upstream_number
+  } : {
+    type: this.upstream_type.toLowerCase(), id: this.upstream_id
+  };
   var payload = {
-    key: obj.key,
+    key: Crypto.AES.prettyKey(this.key),
     upstream: upstream_pack,
     downstream: downstream_pack
   };
 
+  var self = this;
   API.post('/conversations', {
     data: payload,
     success: function (conversation) {
       self.id = conversation.id;
       cb(self);
-    }
-  });
-};
-
-Conversation.FromObject.prototype = Conversation.prototype;
+    } });
+}
 
 Conversation.prototype.request = function(blocks, cb) {
   API.post('/conversations/' + this.id + '/request_content', {

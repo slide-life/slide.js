@@ -1,51 +1,50 @@
 import API from './api';
 import Crypto from './crypto';
 
-var Conversation = function(upstream, downstream, cb, sym) {
-  var key = sym || Crypto.AES.generateKey();
-  var obj = {
-    symmetricKey: key,
-    key: Crypto.encryptStringWithPackedKey(key, downstream.key),
-    upstream_type: upstream.type,
-    downstream_type: downstream.type
-  };
+var Conversation = function(upstream, downstream, cb) {
+  this.symmetricKey = Crypto.AES.generateKey();
+  this.key = Crypto.encrypt(this.symmetricKey, downstream.key);
+  this.upstream_type = upstream.type;
+  this.downstream_type = downstream.type;
   var device = downstream.type === 'user' ? 'downstream_number' : 'downstream_id';
   var upDevice = upstream.type === 'user' ? 'upstream_number' : 'upstream_id';
-  obj[device] = downstream.downstream;
-  obj[upDevice] = upstream.upstream;
-  Conversation.FromObject.call(this, obj, cb.bind(this));
+  this[device] = downstream.downstream;
+  this[upDevice] = upstream.upstream;
+  this.initialize(function(conversation) {
+    cb(conversation);
+  });
 };
 
-Conversation.FromObject = function(obj, cb) {
-  this.symmetricKey = obj.symmetricKey;
-  var self = this;
-  var downstream_pack = obj.downstream_type.toLowerCase() === 'user' ? {
-    type: obj.downstream_type.toLowerCase(), number: obj.downstream_number
-  } : {
-    type: obj.downstream_type.toLowerCase(), id: obj.downstream_id
-  };
-  var upstream_pack = obj.upstream_type.toLowerCase() === 'user' ? {
-    type: obj.upstream_type.toLowerCase(), number: obj.upstream_number
-  } : {
-    type: obj.upstream_type.toLowerCase(), id: obj.upstream_id
-  };
+Conversation.fromObject = function(obj, cb) {
+  $.extend(this, obj);
+  this.initialize(cb);
+};
 
+Conversation.prototype.initialize = function(cb) {
+  var downstream_pack = this.downstream_type.toLowerCase() === 'user' ? {
+    type: this.downstream_type.toLowerCase(), number: this.downstream_number
+  } : {
+    type: this.downstream_type.toLowerCase(), id: this.downstream_id
+  };
+  var upstream_pack = this.upstream_type.toLowerCase() === 'user' ? {
+    type: this.upstream_type.toLowerCase(), number: this.upstream_number
+  } : {
+    type: this.upstream_type.toLowerCase(), id: this.upstream_id
+  };
   var payload = {
-    key: obj.key,
+    key: Crypto.AES.prettyKey(this.key),
     upstream: upstream_pack,
     downstream: downstream_pack
   };
 
+  var self = this;
   API.post('/conversations', {
     data: payload,
     success: function (conversation) {
       self.id = conversation.id;
       cb(self);
-    }
-  });
-};
-
-Conversation.FromObject.prototype = Conversation.prototype;
+    } });
+}
 
 Conversation.prototype.request = function(blocks, cb) {
   API.post('/conversations/' + this.id + '/request_content', {

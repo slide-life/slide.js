@@ -1,4 +1,4 @@
-var HOST = 'api-sandbox.slide.life';
+var HOST = 'slide-dev.ngrok.com';
 
 export default {
   endpoint: function(/* protocol, */ path) {
@@ -10,7 +10,6 @@ export default {
   },
 
   enableJSON: function (options) {
-    console.log(JSON.stringify(options.data));
     if (options.data) { options.data = JSON.stringify(options.data); }
     options.contentType = 'application/json; charset=utf-8';
     options.dataType = 'json';
