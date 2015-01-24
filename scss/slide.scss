@@ -87,6 +87,7 @@ $drop-shadow: 0px 2px 4px 0px rgba(160, 160, 160, 0.40);
 }
 
 .slide-form .send-button {
+  cursor: pointer;
   background-color: $light-green;
   color: white;
   width: 100%;

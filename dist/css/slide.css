@@ -253,6 +253,7 @@
   -webkit-tap-highlight-color: transparent; }
 
 .slide-form .send-button {
+  cursor: pointer;
   background-color: #22C064;
   color: white;
   width: 100%;
