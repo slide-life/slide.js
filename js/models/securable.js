@@ -1,4 +1,4 @@
-import Crypto from './crypto';
+import Crypto from '../utils/crypto';
 
 var Securable = function(pub, priv, key) {
   this.loadWithKeys(pub, priv, key);
@@ -11,19 +11,31 @@ Securable.prototype.loadWithKeys = function(pub, priv, key) {
 };
 
 Securable.prototype.generate = function() {
-  Crypto.generateKeys(function(k) {
-    this.publicKey = k.publicKey;
-    this.privateKey = k.privateKey;
-    this.symmetricKey = Crypto.AES.generateKey();
-  });
+  var self = this;
+  var keys = Crypto.generateKeysSync();
+  self.publicKey = keys.publicKey;
+  self.privateKey = keys.privateKey;
+  self.symmetricKey = Crypto.AES.generateKey();
+};
+
+Securable.prototype.prettyKey = function() {
+  return Crypto.AES.prettyKey(this.encryptedSymmetricKey());
+};
+
+Securable.prototype.prettyPublicKey = function() {
+  return this.publicKey;
 };
 
 Securable.prototype.encryptedSymmetricKey = function() {
-  return Crypto.encryptStringWithPackedKey(this.symmetricKey, this.publicKey);
+  return Crypto.encrypt(this.symmetricKey, this.publicKey);
 };
 
-Securable.prototype.checksum = function() {
-  return Crypto.encryptStringWithPackedKey('', this.symmetricKey);
+Securable.prototype.getChecksum = function() {
+  return Crypto.encrypt('', this.publicKey);
+};
+
+Securable.prototype.prettyChecksum = function() {
+  return this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum;
 };
 
 Securable.prototype.decrypt = function(data) {
@@ -41,3 +53,5 @@ Securable.prototype.encrypt = function(data) {
 Securable.prototype.encryptData = function(data) {
   return Crypto.AES.encryptData(data, this.symmetricKey);
 };
+
+export default Securable;

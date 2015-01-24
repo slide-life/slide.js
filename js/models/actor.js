@@ -1,13 +1,16 @@
 import API from '../utils/api';
 import Crypto from '../utils/crypto';
 import Conversation from './conversation';
+import Securable from './securable';
 
-function Actor() {
+var Actor = function() {
   var self = this;
   var keys = Crypto.generateKeysSync();
   self.publicKey = keys.publicKey;
   self.privateKey = keys.privateKey;
-}
+};
+
+$.extend(Actor.prototype, Securable.prototype);
 
 Actor.fromObject = function(obj) {
   var actor = new Actor();
@@ -54,7 +57,7 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
       upstream: self.id,
       type: 'actor'
     }, downstream, onCreate);
-    self.key = conversation.symmetricKey;
+    self.symmetricKey = conversation.symmetricKey;
   });
 };
 
@@ -71,7 +74,7 @@ Actor.prototype.onmessage = function(message, cb) {
     cb(message.payload.blocks, message.payload.conversation);
   } else {
     var data = message.payload.fields;
-    cb(Crypto.AES.decryptData(data, this.key));
+    cb(this.decryptData(data));
   }
 };
 

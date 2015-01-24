@@ -10,6 +10,8 @@ var User = function(number, pub, priv, key) {
   this.symmetricKey = key;
 };
 
+$.extend(User.prototype, Securable.prototype);
+
 User.prototype.getId = function() {
   return this.number;
 };
@@ -70,7 +72,7 @@ User.prototype.loadRelationships = function(success) {
   API.get('/users/' + this.number + '/vendor_users', {
     success: function (encryptedUuids) {
       var uuids = encryptedUuids.map(function(encryptedUuid) {
-        return Crypto.AES.decryptData(encryptedUuid, self.symmetricKey);
+        return this.decryptData(encryptedUuid);
       });
       var vendorUsers = uuids.map(function(uuid) {
         return Slide.VendorUser.new(uuid);
@@ -104,15 +106,13 @@ User.register = function(number, cb, fail) {
   var keys = Crypto.generateKeysSync();
   var user = new User();
   var symmetricKey = Crypto.AES.generateKey();
-  var key = User.encryptedSymmetricKey();
-  user.symmetricKey = symmetricKey;
-  user.publicKey = keys.publicKey;
-  user.privateKey = keys.privateKey;
+  user.generate();
+  var key = user.encryptedSymmetricKey();
   user.number = number;
   API.post('/users', {
     data: {
-      key: Crypto.AES.prettyKey(key),
-      public_key: Crypto.AES.prettyKey(keys.publicKey),
+      key: user.prettyKey(),
+      public_key: user.prettyPublicKey(),
       user: number
     },
     success: function (u) {
@@ -153,7 +153,7 @@ User.prototype.listen = function(cb) {
       cb(message.payload.blocks, message.payload.conversation);
     } else {
       var data = message.payload.fields;
-      cb(Crypto.AES.decryptData(data, self.symmetricKey));
+      cb(this.decryptData(data));
     }
   };
 };
@@ -166,6 +166,5 @@ User.prototype.requestPrivateKey = function(cb) {
   });
 };
 
-$.extend(User, Securable);
 
 export default User;

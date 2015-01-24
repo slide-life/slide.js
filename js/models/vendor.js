@@ -2,13 +2,14 @@ import API from '../utils/api';
 import Crypto from '../utils/crypto';
 import Storage from '../utils/storage';
 import User from './user';
+import Securable from './securable';
 
 var Vendor = function (name, chk, id, keys) {
   if (keys) {
     this.publicKey = keys.pub;
     this.privateKey = keys.priv;
     this.symmetricKey = keys.sym;
-    this.checksum = chk || Crypto.encrypt('', keys.pub);
+    this.checksum = chk || this.checksum();
   }
   this.name = name;
   this.id = id;
@@ -61,19 +62,16 @@ Vendor.invite = function (name, cb) {
 
 Vendor.prototype.register = function (cb) {
   var invite = this.invite, id = this.id, keys = Crypto.generateKeysSync();
-  var symmetricKey = Crypto.AES.generateKey();
-  var key = Crypto.AES.encryptKey(symmetricKey, keys.publicKey);
-  this.publicKey = keys.publicKey;
-  this.privateKey = keys.privateKey;
-  this.symmetricKey = symmetricKey;
-  this.checksum = Crypto.encrypt('', keys.publicKey);
+  this.generate();
+  var key = this.encryptedSymmetricKey();
+  this.checksum = this.getChecksum();
   var self = this;
   API.put('/vendors/' + id, {
     data: {
       invite_code: invite,
-      key: Crypto.prettyPayload(key),
+      key: this.prettyKey(),
       public_key: keys.publicKey,
-      checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum
+      checksum: this.prettyChecksum()
     },
     success: function (v) {
       self.id = v.id;
@@ -94,7 +92,7 @@ Vendor.prototype.createForm = function (name, formFields, cb) {
     data: {
       name: name,
       form_fields: formFields,
-      checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum
+      checksum: this.prettyChecksum()
     },
     success: function (form) {
       cb && cb(Slide.VendorForm.fromObject(form));
@@ -104,7 +102,7 @@ Vendor.prototype.createForm = function (name, formFields, cb) {
 
 Vendor.prototype.loadForms = function(cb) {
   API.get('/vendors/' + this.id + '/vendor_forms', {
-    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
+    data: { checksum: this.prettyChecksum() },
     success: function(forms) {
       cb(forms);
     }
@@ -113,7 +111,7 @@ Vendor.prototype.loadForms = function(cb) {
 
 Vendor.prototype.getProfile = function(success, fail) {
   API.get('/vendors/' + this.id + '/profile', {
-    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
+    data: { checksum: this.prettyChecksum() },
     success: function(profile) {
       success(profile);
     },
@@ -123,11 +121,12 @@ Vendor.prototype.getProfile = function(success, fail) {
 
 Vendor.prototype.getUsers = function(cb) {
   API.get('/vendors/' + this.id + '/vendor_users', {
-    data: { checksum: this.checksum ? Crypto.prettyPayload(this.checksum) : this.checksum },
+    data: { checksum: this.prettyChecksum() },
     success: function(users) {
       cb(users);
     }
   });
 };
+
 
 export default Vendor;
