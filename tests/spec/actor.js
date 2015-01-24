@@ -38,7 +38,6 @@ describe('Actor', function () {
   });
 
   describe('.processMessage()', function () {
-    this.timeout(5e3);
     it('should process a request', function (done) {
       var requestedBlocks = ['slide.life:bank.card.number'];
       var profile = {'slide/life:bank/card/number': '1234'};

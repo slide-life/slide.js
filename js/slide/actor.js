@@ -46,7 +46,6 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
   this.initialize(function(actor) {
     self.id = actor.id;
     self.listen(function(fields) {
-      console.log("message");
       // TODO: Propogate UI updates
       onMessage(fields);
     });

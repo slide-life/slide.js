@@ -30805,8 +30805,9 @@ Actor.fromObject = function(obj) {
   return actor;
 };
 
-Actor.prototype.openRequest = function(blocks, downstream, onMessage) {
+Actor.prototype.openRequest = function(blocks, downstream, onMessage, onCreate) {
   this.openConversation(downstream, function(conversation) {
+    onCreate && onCreate(conversation);
     conversation.request(blocks);
   }, onMessage);
 };
@@ -30832,7 +30833,7 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
   this.initialize(function(actor) {
     self.id = actor.id;
     self.listen(function(fields) {
-      $('#modal').modal('toggle');
+      // TODO: Propogate UI updates
       onMessage(fields);
     });
 
@@ -30857,7 +30858,7 @@ Actor.prototype.onmessage = function(message, cb) {
     cb(message.payload.blocks, message.payload.conversation);
   } else {
     var data = message.payload.fields;
-    cb(Crypto.AES.decryptData(data, self.key));
+    cb(Crypto.AES.decryptData(data, this.key));
   }
 };
 
@@ -30877,7 +30878,7 @@ Actor.prototype.listen = function(cb) {
 exports["default"] = Actor;
 },{"./api":3,"./conversation":5,"./crypto":6}],3:[function(require,module,exports){
 "use strict";
-var HOST = 'slide-dev.ngrok.com';
+var HOST = 'api-sandbox.slide.life';
 
 exports["default"] = {
   endpoint: function(/* protocol, */ path) {
