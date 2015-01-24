@@ -31868,7 +31868,7 @@ var cbs = {};
 var isReady = false;
 var queue = [];
 
-$(window).on('message', function(evt) {
+window.addEventListener('message', function(evt) {
   var data = evt.message || evt.data;
   if(data.status) {
     isReady = true;
@@ -31877,7 +31877,7 @@ $(window).on('message', function(evt) {
   }
   cbs[data.channel](data.value);
   delete cbs[data.channel];
-}, false);
+});
 
 var runner = $("<iframe>", {
   src: 'bower_components/slide.js/dist/views/auth.html'

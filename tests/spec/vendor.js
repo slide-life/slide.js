@@ -98,7 +98,7 @@ describe('Vendor', function () {
     describe('.createForm()', function () {
       it('should create a form', function (done) {
         vendor(function (vendor) {
-          vendor.createForm('form thing', ['slide.life:base.phone-number'], function (vendorForm) {
+          vendor.createForm('form thing', '', ['slide.life:base.phone-number'], function (vendorForm) {
             assert.equal('form thing', vendorForm.name);
             done();
           });
@@ -109,7 +109,7 @@ describe('Vendor', function () {
     describe('.loadForms()', function () {
       it('should load its vendor forms', function (done) {
         vendor(function (vendor) {
-          vendor.createForm('form thing 2', ['slide.life:base.phone-number'], function (vendorForm) {
+          vendor.createForm('form thing 2', '', ['slide.life:base.phone-number'], function (vendorForm) {
             vendor.loadForms(function (forms) {
               var formNames = forms.map(function (x) { return x.name });
               assert.notEqual(formNames.indexOf('form thing 2'), -1);
