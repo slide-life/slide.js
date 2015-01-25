@@ -19,12 +19,12 @@ $.extend(Vendor.prototype, User.prototype);
 
 Vendor.prototype.persist = function () {
   var obj = {
-    number: this.number,
+    id: this.id,
+    name: this.name,
     publicKey: this.publicKey,
     privateKey: this.privateKey,
     symmetricKey: this.symmetricKey,
-    checksum: this.checksum,
-    id: this.id
+    checksum: this.checksum
   };
   Storage.persist('vendor', obj);
 };
