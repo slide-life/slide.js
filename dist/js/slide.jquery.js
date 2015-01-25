@@ -34009,10 +34009,11 @@ Form.prototype._createField = function (identifier, field, data, options /* = {}
       throw new Error('A select type must have a list of options');
     } else {
       field._options.forEach(function (option) {
-        var $li = $('<li></li>', {
+        var $option = $('<option></option>', {
+          class: 'field-input-select',
           value: option
         }).text(option);
-        $input.append($li);
+        $input.append($option);
       });
     }
   } else {
