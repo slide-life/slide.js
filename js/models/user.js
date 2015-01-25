@@ -76,18 +76,25 @@ User.prototype.persist = function() {
 };
 
 User.prototype.loadRelationships = function(success) {
-  new User.get(this.number).get(function(user) {
-    console.log('user', user);
-  });
+  var self = this;
   API.get('/users/' + this.number + '/vendor_users', {
     success: function (encryptedUuids) {
-      var uuids = encryptedUuids.map(function(encryptedUuid) {
-        return this.decryptData(encryptedUuid);
+      /*var uuids = encryptedUuids.map(function(encryptedUuid) {
+        return self.decryptData(encryptedUuid);
+      });*/
+      var vendorUsers = encryptedUuids.map(function(uuid) {
+        return new Slide.VendorUser(uuid);
       });
-      var vendorUsers = uuids.map(function(uuid) {
-        return Slide.VendorUser.new(uuid);
+      var count = 0;
+      vendorUsers.forEach(function(vu){
+        vu.load(function() {
+          if( count == vendorUsers.length ) {
+            success(vendorUsers);
+          } else {
+            count++;
+          }
+        });
       });
-      success(vendorUsers);
     }
   });
 };
