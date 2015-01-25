@@ -1,3 +1,4 @@
+import Crypto from './utils/crypto';
 import Actor from './models/actor';
 import Conversation from './models/conversation';
 import User from './models/user';
@@ -18,6 +19,7 @@ var Slide = {
   VendorUser: VendorUser,
   Block: Block,
   Form: Form,
+  Crypto: Crypto,
 
   extractBlocks: function (form) {
     return form.find('*').map(function () {

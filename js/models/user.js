@@ -15,7 +15,7 @@ User.prototype.getId = function() {
   return this.number;
 };
 User.prototype.getDevice = function() {
-  return { type: 'user', number: this.getId(), key: this.publicKey };
+  return { type: 'user', number: this.number, key: this.publicKey };
 };
 User.serializeProfile = function(patch) {
   var prepped = {};
@@ -54,6 +54,15 @@ User.prompt = function(cb) {
 
 User.fromObject = function(obj) {
   return new this(obj.number, obj.publicKey, obj.privateKey, obj.symmetricKey);
+};
+
+User.prototype.get = function(cb) {
+  var self = this;
+  API.get('/users/' + this.number, {
+    success: function(data) {
+      cb(data);
+    }
+  });
 };
 
 User.prototype.persist = function() {
@@ -97,7 +106,10 @@ User.loadFromStorage = function (success, fail) {
 User.load = function(number, cb) {
   var self = this;
   this.loadFromStorage(cb, function () {
-    self.register(number, cb);
+    self.register(number, function(user) {
+      user.persist();
+      cb(user);
+    });
   });
 };
 
@@ -143,6 +155,7 @@ User.prototype.patchProfile = function(patch, cb) {
 User.prototype.listen = function(cb) {
   var socket = API.socket('/users/' + this.number + '/listen');
   socket.onmessage = function (event) {
+    console.log(event);
     var message = JSON.parse(event.data);
     if (message.verb === 'verb_request') {
       cb(message.payload.blocks, message.payload.conversation);
