@@ -202,7 +202,7 @@ Form.prototype._createField = function (identifier, field, data, options /* = {}
       $labelWrapper = $('<div></div>', { 'class': 'field-label-wrapper' }),
       $inputWrapper = $('<div></div>', { 'class': 'field-input-wrapper' });
 
-  var input = $('<input>', $.extend({
+  var $input = $('<input>', $.extend({
     type: 'text',
     class: 'field-input',
     value: data,
@@ -211,7 +211,15 @@ Form.prototype._createField = function (identifier, field, data, options /* = {}
     'data-slide-identifier': identifier
   }, options));
 
-  $inputWrapper.append(input);
+  if (field._type === 'date') {
+    if (!field._format) { throw new Error('A date field must have an associated format'); }
+    $input.inputmask({
+      mask: field._format,
+      autoUnmask: true
+    });
+  }
+
+  $inputWrapper.append($input);
   $labelWrapper.append($('<label></label>').text(field._description));
   return $listItem.append($labelWrapper, $inputWrapper);
 };
