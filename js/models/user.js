@@ -84,7 +84,7 @@ User.prototype.loadRelationships = function(success) {
       console.log(uuids);
       var encryptedUuids;
       try {
-        encryptedUuids = JSON.parse(uuids);
+        encryptedUuids = JSON.parse(uuids || '[]');
       } catch(e) {
         encryptedUuids = uuids;
       }
