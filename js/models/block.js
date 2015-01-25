@@ -170,6 +170,29 @@ var Block = {
     return Block.deconstructField(field).annotations;
   },
 
+  flattenField: function (identifier, field) {
+    var children = Block.getChildren(field);
+    if (Object.keys(children).length > 0) {
+      return Object.keys(children).reduce(function (merged, id) {
+        return $.extend(merged, Block.flattenField(identifier + '.' + id, field[id]));
+      }, {});
+    } else {
+      var leaf = {};
+      leaf[identifier] = field;
+      return leaf;
+    }
+  },
+
+  getFlattenedFieldsForIdentifiers: function (identifiers, cb) {
+    Block.getFieldsForIdentifiers(identifiers, function (unflattenedFields) {
+      var fields = {};
+      $.each(unflattenedFields, function (identifier, field) {
+        $.extend(fields, Block.flattenField(identifier, field));
+      });
+      cb(fields);
+    });
+  },
+
   getFieldsForIdentifiers: function (identifiers, cb) {
     var fields = {},
     deferreds = [],

@@ -185,21 +185,6 @@ Form.prototype._isCard = function (identifier) {
   return Form.CARDS.indexOf(identifier) !== -1;
 };
 
-Form.prototype._flattenField = function (identifier, field) {
-  var children = Block.getChildren(field),
-      self = this;
-
-  if (Object.keys(children).length > 0) {
-    return Object.keys(children).reduce(function (merged, id) {
-      return $.extend(merged, self._flattenField(identifier + '.' + id, field[id]));
-    }, {});
-  } else {
-    var leaf = {};
-    leaf[identifier] = field;
-    return leaf;
-  }
-};
-
 Form.prototype._getDataForIdentifier = function (identifier) {
   var path = Block.getPathForIdentifier(identifier);
   return this.userData[path.identifier] || [];
@@ -286,7 +271,7 @@ Form.prototype.createCardHeader = function (identifier, field, card) {
 };
 
 Form.prototype.createCardSubfields = function (identifier, field, card) {
-  var fields = this._flattenField(identifier, field);
+  var fields = Block.flattenField(identifier, field);
   var compound = [], self = this;
 
   $.each(fields, function (i, f) {
@@ -298,7 +283,7 @@ Form.prototype.createCardSubfields = function (identifier, field, card) {
 };
 
 Form.prototype.createCompound = function (identifier, field) {
-  var fields = this._flattenField(identifier, field);
+  var fields = Block.flattenField(identifier, field);
   var compound = [], self = this;
 
   $.each(fields, function (i, f) {

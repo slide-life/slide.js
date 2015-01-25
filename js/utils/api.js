@@ -19,6 +19,11 @@ export default {
     options.url = this.endpoint(path);
     options.type = 'GET';
     options.dataType = 'json';
+    if (options.data) {
+      for (var k in options.data) {
+        options.data[k] = options.data[k].replace(/=/g, '*');
+      }
+    }
     $.ajax(options);
   },
 
