@@ -66,7 +66,7 @@ VendorUser.createRelationship = function(user, vendor, cb) {
       // TODO: NB: venedor users are overwritten, not appended
       API.patch('/users/' + user.number + '/profile', {
         data: {
-          patch: {_vendor_users: [resp.uuid]}
+          patch: {_vendor_users: JSON.stringify([resp.uuid])}
         }, success: function(profile) {
           console.log(profile);
         }
