@@ -31185,17 +31185,22 @@ User.prototype.persist = function() {
 User.prototype.loadRelationships = function(success) {
   var self = this;
   API.get('/users/' + this.number + '/vendor_users', {
-    success: function (encryptedUuids) {
+    success: function (data) {
       /*var uuids = encryptedUuids.map(function(encryptedUuid) {
         return self.decryptData(encryptedUuid);
       });*/
+      var encryptedUuids = JSON.parse(data);
       var vendorUsers = encryptedUuids.map(function(uuid) {
         return new Slide.VendorUser(uuid);
       });
+      console.log(vendorUsers);
       var count = 0;
+      if( vendorUsers.length == 0 ) {
+        success([]);
+      }
       vendorUsers.forEach(function(vu){
         vu.load(function() {
-          if( count == vendorUsers.length ) {
+          if( count + 1 == vendorUsers.length ) {
             success(vendorUsers);
           } else {
             count++;
@@ -31212,7 +31217,21 @@ User.loadFromStorage = function (success, fail) {
       user = User.fromObject(user);
       user.loadRelationships(function(relationships) {
         user.relationships = relationships;
-        success(user);
+        user.forms = [];
+        if( relationships.count == 0 ) {
+          success(user);
+        }
+        var count = 0;
+        relationships.forEach(function(rel) {
+          rel.loadVendorForms(function(forms) {
+            user.forms.concat(forms);
+            if( count + 1 == relationships.length ) {
+              success(user);
+            } else {
+              count++;
+            }
+          });
+        });
       });
     } else {
       fail(success);
@@ -31272,7 +31291,6 @@ User.prototype.patchProfile = function(patch, cb) {
 User.prototype.listen = function(cb) {
   var socket = API.socket('/users/' + this.number + '/listen');
   socket.onmessage = function (event) {
-    console.log(event);
     var message = JSON.parse(event.data);
     if (message.verb === 'verb_request') {
       cb(message.payload.blocks, message.payload.conversation);
@@ -31402,7 +31420,7 @@ VendorUser.createRelationship = function(user, vendor, cb) {
       // TODO: NB: venedor users are overwritten, not appended
       API.patch('/users/' + user.number + '/profile', {
         data: {
-          patch: {_vendor_users: [resp.uuid]}
+          patch: {_vendor_users: JSON.stringify([resp.uuid])}
         }, success: function(profile) {
           console.log(profile);
         }
