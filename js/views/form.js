@@ -358,20 +358,22 @@ Form.prototype.createCompound = function (identifier, field) {
 };
 
 Form.prototype._getFieldsInElement = function ($element, multi /* = false */) {
-  multi = multi !== undefined;
+  multi = (multi !== undefined);
 
-  var $fields = $element.find('.field-input'),
-      keystore = {};
+  var $fields = $element.find('.field-input');
+  var keystore = {};
 
   $fields.each(function () {
-    var key = $(this).data('slide-identifier'),
-        value = $(this).val();
+    var key = $(this).data('slide-identifier');
+    var value = $(this).val();
 
-    if (multi) {
-      keystore[key] = keystore[key] || [];
-      keystore[key].push(value);
-    } else {
-      keystore[key] = value;
+    if (!!value) {
+      if (multi) {
+        keystore[key] = keystore[key] || [];
+        keystore[key].push(value);
+      } else {
+        keystore[key] = value;
+      }
     }
   });
 
@@ -414,7 +416,7 @@ Form.prototype.getPatchedUserData = function () {
   var updated = this.getUserData();
   var patch = {};
 
-  $.each(profile, function (identifier, key) {
+  $.each(updated, function (identifier, key) {
     if (!deepCompare(profile[identifier], updated[identifier])) {
       patch[identifier] = updated[identifier];
     }
