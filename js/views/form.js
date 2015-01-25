@@ -402,9 +402,11 @@ Form.prototype.getUserData = function () {
 
   this.$form.find('.card-wrapper').each(function (card) {
     var key = $(this).find('.card .card-header .field-input').data('slide-identifier');
-    cardData[key] = [];
     $(this).find('.card:not(.slick-cloned, .new-field) .card-subfields').each(function () {
-      cardData[key].push(self._getFieldsInElement($(this)));
+      if (!deepCompare(fields, {})) {
+        cardData[key] = cardData[key] || [];
+        cardData[key].push(self._getFieldsInElement($(this)));
+      }
     });
   });
 
