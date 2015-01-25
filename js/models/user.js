@@ -1,5 +1,4 @@
 import API from '../utils/api';
-import Crypto from '../utils/crypto';
 import Storage from '../utils/storage';
 import Securable from './securable';
 
@@ -64,11 +63,10 @@ User.prototype.persist = function() {
     privateKey: this.privateKey,
     symmetricKey: this.symmetricKey
   };
-  Storage.persist("user", obj);
+  Storage.persist('user', obj);
 };
 
 User.prototype.loadRelationships = function(success) {
-  var self = this;
   API.get('/users/' + this.number + '/vendor_users', {
     success: function (encryptedUuids) {
       var uuids = encryptedUuids.map(function(encryptedUuid) {
@@ -104,11 +102,8 @@ User.load = function(number, cb) {
 };
 
 User.register = function(number, cb, fail) {
-  var keys = Crypto.generateKeysSync();
   var user = new User();
-  var symmetricKey = Crypto.AES.generateKey();
   user.generate();
-  var key = user.encryptedSymmetricKey();
   user.number = number;
   API.post('/users', {
     data: {
@@ -118,7 +113,7 @@ User.register = function(number, cb, fail) {
     },
     success: function (u) {
       user.id = u.id;
-      cb && cb(user);
+      if (cb) { cb(user); }
     },
     failure: function(error) {
       fail(error);
@@ -140,14 +135,13 @@ User.prototype.patchProfile = function(patch, cb) {
   API.patch('/users/' + this.number + '/profile', {
     data: { patch: this.encryptData(patch) },
     success: function (user) {
-      cb && cb(self.decryptData(user.profile));
+      if (cb) { cb(self.decryptData(user.profile)); }
     }
   });
 };
 
 User.prototype.listen = function(cb) {
   var socket = API.socket('/users/' + this.number + '/listen');
-  var self = this;
   socket.onmessage = function (event) {
     var message = JSON.parse(event.data);
     if (message.verb === 'verb_request') {

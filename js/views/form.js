@@ -154,6 +154,7 @@ Form.prototype.build = function (userData, options) {
 
   this.$form.append(this._createSubmitButton());
   this.initializeListeners();
+  this.intializeMasks();
 };
 
 Form.prototype._createSubmitButton = function () {
@@ -181,6 +182,12 @@ Form.prototype.initializeListeners = function () {
   });
 };
 
+Form.prototype.initializeMasks = function () {
+  $.extend($.inputmask.defaults, {
+    'autoUnmask': true
+  });
+};
+
 Form.prototype._isCard = function (identifier) {
   return Form.CARDS.indexOf(identifier) !== -1;
 };
@@ -193,31 +200,63 @@ Form.prototype._getDataForIdentifier = function (identifier) {
 Form.prototype._createSlider = function (fields) {
   var slider = $('<ul></ul>', { class: 'slider'});
   return slider.append.apply(slider, fields);
-},
+};
+
+Form._bindMask = function (identifier, field, $input) {
+  var phonePrefixes = ['slide.life:mobile-phone', 'slide.life:home-phone', 'slide.life:work-phone'];
+  var phoneNumbers = phonePrefixes.map(function (prefix) { return prefix + '.number'; });
+  var phoneCountryCodes = phonePrefixes.map(function (prefix) { return prefix + '.country-code'; });
+
+  if (field._type === 'date') {
+    if (!field._format) { throw new Error('A date type must have an associated format'); }
+    $input.inputmask({ mask: field._format });
+  } else if (phoneNumbers.indexOf(identifier) > -1) {
+    $input.inputmask({ mask: '(999) 999-9999' });
+  } else if (phoneCountryCodes.indexOf(identifier) > -1) {
+    $input.inputmask({ mask: '+9[9[9]]', placeholder: '', greedy: false });
+  } else if (identifier === 'slide.life:bank.card.number') {
+    $input.inputmask({ mask: '9999 9999 9999 9999' });
+  } else if (identifier === 'slide.life:bank.card.security-code') {
+    $input.inputmask({ mask: '999[9]', greedy: false });
+  } else if (identifier === 'slide.life:ssn') {
+    $input.inputmask({ mask: '999-99-9999', greedy: false });
+  } else if (identifier === 'slide.life:email') {
+    $input.inputmask({ alias: 'email' });
+  }
+};
 
 Form.prototype._createField = function (identifier, field, data, options /* = {} */) {
   options = options || {};
 
   var $listItem = $('<li></li>', { class: 'field' }),
       $labelWrapper = $('<div></div>', { 'class': 'field-label-wrapper' }),
-      $inputWrapper = $('<div></div>', { 'class': 'field-input-wrapper' });
+      $inputWrapper = $('<div></div>', { 'class': 'field-input-wrapper' }),
+      $input;
 
-  var $input = $('<input>', $.extend({
-    type: 'text',
-    class: 'field-input',
-    value: data,
-    autocorrect: 'off',
-    autocapitalize: 'off',
-    'data-slide-identifier': identifier
-  }, options));
-
-  if (field._type === 'date') {
-    if (!field._format) { throw new Error('A date field must have an associated format'); }
-    $input.inputmask({
-      mask: field._format,
-      autoUnmask: true
-    });
+  if (field._type === 'select') {
+    $input = $('<select></select>');
+    if (!field._options) {
+      throw new Error('A select type must have a list of options');
+    } else {
+      field._options.forEach(function (option) {
+        var $li = $('<li></li>', {
+          value: option
+        }).text(option);
+        $input.append($li);
+      });
+    }
+  } else {
+    $input = $('<input>', $.extend({
+      type: 'text',
+      class: 'field-input',
+      value: data,
+      autocorrect: 'off',
+      autocapitalize: 'off'
+    }, options));
   }
+
+  $input.attr('data-slide-identifier', identifier);
+  Form._bindMask(identifier, field, $input);
 
   $inputWrapper.append($input);
   $labelWrapper.append($('<label></label>').text(field._description));
@@ -244,7 +283,7 @@ Form.prototype._createButton = function () {
   var $button = $('<div class="add-button">+</div>');
   var $buttonInnerWrapper = $('<div class="add-button-inner-wrapper"></div>').append($button);
   return $('<div class="add-button-wrapper"></div>').append($buttonInnerWrapper);
-}
+};
 
 Form.prototype._buildCard = function (identifier, field, card) {
   var $cardHeader = this.createCardHeader(identifier, field, card);
@@ -264,7 +303,7 @@ Form.prototype.createCard = function (identifier, field) {
     var $card = this._buildCard(identifier, field, {});
     [$card, $newCard].forEach(function ($c) {
       $c.find('.card-subfields').show();
-    })
+    });
     cards.push($card);
   }
 

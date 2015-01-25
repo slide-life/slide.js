@@ -1,7 +1,7 @@
 import API from '../utils/api';
 import Crypto from '../utils/crypto';
 
-var Conversation = function(upstream, downstream, cb) {
+var Conversation = function (upstream, downstream, cb) {
   this.symmetricKey = Crypto.AES.generateKey();
   this.key = Crypto.encrypt(this.symmetricKey, downstream.key);
   this.upstream_type = upstream.type;
@@ -15,12 +15,12 @@ var Conversation = function(upstream, downstream, cb) {
   });
 };
 
-Conversation.fromObject = function(obj, cb) {
+Conversation.fromObject = function (obj, cb) {
   $.extend(this, obj);
   this.initialize(cb);
 };
 
-Conversation.prototype.initialize = function(cb) {
+Conversation.prototype.initialize = function (cb) {
   var downstream_pack = this.downstream_type.toLowerCase() === 'user' ? {
     type: this.downstream_type.toLowerCase(), number: this.downstream_number
   } : {
@@ -44,9 +44,9 @@ Conversation.prototype.initialize = function(cb) {
       self.id = conversation.id;
       cb(self);
     } });
-}
+};
 
-Conversation.prototype.request = function(blocks, cb) {
+Conversation.prototype.request = function (blocks, cb) {
   API.post('/conversations/' + this.id + '/request_content', {
     data: { blocks: blocks },
     success: cb

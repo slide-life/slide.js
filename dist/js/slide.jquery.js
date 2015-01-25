@@ -32480,7 +32480,7 @@ var Crypto = require("../utils/crypto")["default"];
 var Conversation = require("./conversation")["default"];
 var Securable = require("./securable")["default"];
 
-var Actor = function() {
+var Actor = function () {
   var self = this;
   var keys = Crypto.generateKeysSync();
   self.publicKey = keys.publicKey;
@@ -32489,7 +32489,7 @@ var Actor = function() {
 
 $.extend(Actor.prototype, Securable.prototype);
 
-Actor.fromObject = function(obj) {
+Actor.fromObject = function (obj) {
   var actor = new Actor();
   actor.privateKey = obj.privateKey;
   actor.publicKey = obj.publicKey;
@@ -32498,34 +32498,33 @@ Actor.fromObject = function(obj) {
   return actor;
 };
 
-Actor.prototype.openRequest = function(blocks, downstream, onMessage, onCreate) {
-  this.openConversation(downstream, function(conversation) {
-    onCreate && onCreate(conversation);
+Actor.prototype.openRequest = function (blocks, downstream, onMessage, onCreate) {
+  this.openConversation(downstream, function (conversation) {
+    if (onCreate) { onCreate(conversation); }
     conversation.request(blocks);
   }, onMessage);
 };
 
-Actor.prototype.register = function(cb) {
-  var self = this;
+Actor.prototype.register = function (cb) {
   API.post('/actors', {
     data: { name: this.name, public_key: this.publicKey },
     success: cb
   });
 };
 
-Actor.prototype.initialize = function(cb) {
+Actor.prototype.initialize = function (cb) {
   var self = this;
-  this.register(function(actor) {
+  this.register(function (actor) {
     self.id = actor.id;
-    cb && cb(self);
+    if (cb) { cb(self); }
   });
 };
 
-Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
+Actor.prototype.openConversation = function (downstream, onCreate, onMessage) {
   var self = this;
-  this.initialize(function(actor) {
+  this.initialize(function (actor) {
     self.id = actor.id;
-    self.listen(function(fields) {
+    self.listen(function (fields) {
       // TODO: Propogate UI updates
       onMessage(fields);
     });
@@ -32538,15 +32537,15 @@ Actor.prototype.openConversation = function(downstream, onCreate, onMessage) {
   });
 };
 
-Actor.prototype.getId = function() {
+Actor.prototype.getId = function () {
   return this.id;
 };
 
-Actor.prototype.getDevice = function() {
+Actor.prototype.getDevice = function () {
   return { type: 'actor', id: this.getId(), key: this.publicKey };
 };
 
-Actor.prototype.onmessage = function(message, cb) {
+Actor.prototype.onmessage = function (message, cb) {
   if( message.verb === 'verb_request' ) {
     cb(message.payload.blocks, message.payload.conversation);
   } else {
@@ -32555,7 +32554,7 @@ Actor.prototype.onmessage = function(message, cb) {
   }
 };
 
-Actor.prototype._listen = function(Socket, cb) {
+Actor.prototype._listen = function (Socket, cb) {
   var socket = new Socket(API.endpoint('ws://', '/actors/' + this.id + '/listen'));
   var self = this;
   socket.onmessage = function (event) {
@@ -32564,7 +32563,7 @@ Actor.prototype._listen = function(Socket, cb) {
   };
 };
 
-Actor.prototype.listen = function(cb) {
+Actor.prototype.listen = function (cb) {
   this._listen(WebSocket, cb);
 };
 
@@ -32793,7 +32792,7 @@ exports["default"] = Block;
 var API = require("../utils/api")["default"];
 var Crypto = require("../utils/crypto")["default"];
 
-var Conversation = function(upstream, downstream, cb) {
+var Conversation = function (upstream, downstream, cb) {
   this.symmetricKey = Crypto.AES.generateKey();
   this.key = Crypto.encrypt(this.symmetricKey, downstream.key);
   this.upstream_type = upstream.type;
@@ -32807,12 +32806,12 @@ var Conversation = function(upstream, downstream, cb) {
   });
 };
 
-Conversation.fromObject = function(obj, cb) {
+Conversation.fromObject = function (obj, cb) {
   $.extend(this, obj);
   this.initialize(cb);
 };
 
-Conversation.prototype.initialize = function(cb) {
+Conversation.prototype.initialize = function (cb) {
   var downstream_pack = this.downstream_type.toLowerCase() === 'user' ? {
     type: this.downstream_type.toLowerCase(), number: this.downstream_number
   } : {
@@ -32836,9 +32835,9 @@ Conversation.prototype.initialize = function(cb) {
       self.id = conversation.id;
       cb(self);
     } });
-}
+};
 
-Conversation.prototype.request = function(blocks, cb) {
+Conversation.prototype.request = function (blocks, cb) {
   API.post('/conversations/' + this.id + '/request_content', {
     data: { blocks: blocks },
     success: cb
@@ -32929,7 +32928,6 @@ exports["default"] = Securable;
 },{"../utils/crypto":11}],5:[function(require,module,exports){
 "use strict";
 var API = require("../utils/api")["default"];
-var Crypto = require("../utils/crypto")["default"];
 var Storage = require("../utils/storage")["default"];
 var Securable = require("./securable")["default"];
 
@@ -32994,11 +32992,10 @@ User.prototype.persist = function() {
     privateKey: this.privateKey,
     symmetricKey: this.symmetricKey
   };
-  Storage.persist("user", obj);
+  Storage.persist('user', obj);
 };
 
 User.prototype.loadRelationships = function(success) {
-  var self = this;
   API.get('/users/' + this.number + '/vendor_users', {
     success: function (encryptedUuids) {
       var uuids = encryptedUuids.map(function(encryptedUuid) {
@@ -33034,11 +33031,8 @@ User.load = function(number, cb) {
 };
 
 User.register = function(number, cb, fail) {
-  var keys = Crypto.generateKeysSync();
   var user = new User();
-  var symmetricKey = Crypto.AES.generateKey();
   user.generate();
-  var key = user.encryptedSymmetricKey();
   user.number = number;
   API.post('/users', {
     data: {
@@ -33048,7 +33042,7 @@ User.register = function(number, cb, fail) {
     },
     success: function (u) {
       user.id = u.id;
-      cb && cb(user);
+      if (cb) { cb(user); }
     },
     failure: function(error) {
       fail(error);
@@ -33070,14 +33064,13 @@ User.prototype.patchProfile = function(patch, cb) {
   API.patch('/users/' + this.number + '/profile', {
     data: { patch: this.encryptData(patch) },
     success: function (user) {
-      cb && cb(self.decryptData(user.profile));
+      if (cb) { cb(self.decryptData(user.profile)); }
     }
   });
 };
 
 User.prototype.listen = function(cb) {
   var socket = API.socket('/users/' + this.number + '/listen');
-  var self = this;
   socket.onmessage = function (event) {
     var message = JSON.parse(event.data);
     if (message.verb === 'verb_request') {
@@ -33099,7 +33092,7 @@ User.prototype.requestPrivateKey = function(cb) {
 
 
 exports["default"] = User;
-},{"../utils/api":10,"../utils/crypto":11,"../utils/storage":12,"./securable":4}],6:[function(require,module,exports){
+},{"../utils/api":10,"../utils/storage":12,"./securable":4}],6:[function(require,module,exports){
 "use strict";
 var API = require("../utils/api")["default"];
 
@@ -33143,8 +33136,9 @@ var VendorUser = function(uuid) {
 };
 
 VendorUser.prototype.fromObject = function(obj) {
-  for( var k in obj )
+  for (var k in obj) {
     this[k] = obj[k];
+  }
 };
 
 VendorUser.prototype.load = function(cb) {
@@ -33161,7 +33155,7 @@ VendorUser.prototype.getVendorKey = function(privateKey) {
 };
 
 VendorUser.load = function(fail, success) {
-  Storage.access("vendor-user", function(vendorUser) {
+  Storage.access('vendor-user', function(vendorUser) {
     if( Object.keys(vendorUser).length > 0 ) {
       vendorUser = new VendorUser(vendorUser.uuid).fromObject(vendorUser);
       success(vendorUser);
@@ -33171,18 +33165,16 @@ VendorUser.load = function(fail, success) {
   });
 };
 VendorUser.persist = function(vendorUser) {
-  Storage.persist("vendor-user", vendorUser);
+  Storage.persist('vendor-user', vendorUser);
 };
 
 VendorUser.createRelationship = function(user, vendor, cb) {
-  var keys = Crypto.generateKeysSync();
-
   var key = Crypto.AES.generateKey();
   var userKey = Crypto.AES.encryptKey(key, user.publicKey);
   var vendorKey = Crypto.AES.encryptKey(key, vendor.publicKey);
   var checksum = Crypto.encrypt('', user.publicKey);
 
-  API.post('/vendors/'+vendor.id+'/vendor_users', {
+  API.post('/vendors/' + vendor.id + '/vendor_users', {
     data: {
       key: Crypto.AES.prettyKey(userKey),
       public_key: user.publicKey,
@@ -33199,7 +33191,7 @@ VendorUser.createRelationship = function(user, vendor, cb) {
       var vendorUser = new VendorUser(resp.uuid);
       vendorUser.fromObject(resp);
       // VendorUser.persist(vendorUser);
-      cb && cb(vendorUser);
+      if (cb) { cb(vendorUser); }
     }
   });
 };
@@ -33228,7 +33220,6 @@ var Crypto = require("../utils/crypto")["default"];
 var Storage = require("../utils/storage")["default"];
 var VendorForm = require("./vendor-form")["default"];
 var User = require("./user")["default"];
-var Securable = require("./securable")["default"];
 
 var Vendor = function (name, chk, id, keys) {
   if (keys) {
@@ -33252,7 +33243,7 @@ Vendor.prototype.persist = function () {
     checksum: this.checksum,
     id: this.id
   };
-  Storage.persist("vendor", obj);
+  Storage.persist('vendor', obj);
 };
 
 Vendor.fromObject = function (obj) {
@@ -33268,7 +33259,7 @@ Vendor.fromObject = function (obj) {
 };
 
 Vendor.load = function (fail, success) {
-  Storage.access("vendor", function(vendor) {
+  Storage.access('vendor', function(vendor) {
     if( Object.keys(vendor).length > 0 ) {
       success(Vendor.fromObject(vendor));
     } else {
@@ -33289,7 +33280,6 @@ Vendor.invite = function (name, cb) {
 Vendor.prototype.register = function (cb) {
   var invite = this.invite, id = this.id, keys = Crypto.generateKeysSync();
   this.generate();
-  var key = this.encryptedSymmetricKey();
   this.checksum = this.getChecksum();
   var self = this;
   API.put('/vendors/' + id, {
@@ -33301,7 +33291,7 @@ Vendor.prototype.register = function (cb) {
     },
     success: function (v) {
       self.id = v.id;
-      cb && cb(self);
+      if (cb) { cb(self); }
     }
   });
 };
@@ -33322,7 +33312,7 @@ Vendor.prototype.createForm = function (name, description, formFields, cb) {
       checksum: this.prettyChecksum()
     },
     success: function (form) {
-      cb && cb(VendorForm.fromObject(form));
+      if (cb) { cb(VendorForm.fromObject(form)); }
     }
   });
 };
@@ -33354,7 +33344,7 @@ Vendor.prototype.getUsers = function(success, fail) {
 
 
 exports["default"] = Vendor;
-},{"../utils/api":10,"../utils/crypto":11,"../utils/storage":12,"./securable":4,"./user":5,"./vendor-form":6}],9:[function(require,module,exports){
+},{"../utils/api":10,"../utils/crypto":11,"../utils/storage":12,"./user":5,"./vendor-form":6}],9:[function(require,module,exports){
 "use strict";
 var Actor = require("./models/actor")["default"];
 var Conversation = require("./models/conversation")["default"];
@@ -33422,7 +33412,7 @@ var Slide = {
   insertVendorForm: function(form, vendor, onClick) {
     var modal = this.prepareModal('Your Forms');
     var list = modal.find('.form-list');
-    var li = $("<li></li>");
+    var li = $('<li></li>');
     li.click(function(evt) {
       onClick(form);
     });
@@ -33433,7 +33423,7 @@ var Slide = {
   presentVendorForms: function(forms, vendor, onCreate, onClick) {
     var modal = this.prepareModal('Your Forms');
     modal.toggle();
-    var list = $("<ul class='form-list'></ul>");
+    var list = $('<ul class="form-list"></ul>');
     modal.append(list);
     var addBtn = $('<a href="#">Add</a>');
     modal.find('.slide-modal-action').append(addBtn);
@@ -33442,28 +33432,28 @@ var Slide = {
       onCreate();
     });
     forms.forEach(function(form) {
-      var li = $("<li></li>");
+      var li = $('<li></li>');
       li.click(function(evt) {
         onClick(form);
       });
       li.text(form.name);
       list.append(li);
-    })
+    });
   },
 
   presentFormsModal: function(forms, user, cb) {
     var modal = this.prepareModal('Your Forms');
     modal.toggle();
-    var list = $("<ul class='form-list'></ul>");
+    var list = $('<ul class="form-list"></ul>');
     modal.append(list);
     forms.forEach(function(form) {
-      var li = $("<li></li>");
+      var li = $('<li></li>');
       li.click(function(evt) {
         Slide.presentModalForm(form, user.profile, cb);
       });
       li.text(form.name);
       list.append(li);
-    })
+    });
   },
 
   presentModalForm: function (vendorForm, userData, cb) {
@@ -33701,20 +33691,20 @@ var Crypto = {
     return pub.decrypt(text);
   },
   prettyPayload: function(payload) {
-    if( typeof payload != 'string' ) {
-      throw new Error("First argument expected to be 'string'");
+    if( typeof payload !== 'string' ) {
+      throw new Error('First argument expected to be "string"');
     }
     if( payload.match(/=$/) ) {
-      console.warn("You may have provided a base64 encoded payload.");
+      console.warn('You may have provided a base64 encoded payload.');
     }
     return btoa(payload);
   },
   uglyPayload: function(payload) {
-    if( typeof payload != 'string' ) {
-      throw new Error("First argument expected to be 'string'");
+    if( typeof payload !== 'string' ) {
+      throw new Error('First argument expected to be "string"');
     }
     if( !payload.match(/^[A-Za-z=0-9+\/]+$/) ) {
-      throw new Error("Payload is not in base64 encoding.");
+      throw new Error('Payload is not in base64 encoding.');
     }
     return atob(payload);
   }
@@ -33723,11 +33713,20 @@ var Crypto = {
 exports["default"] = Crypto;
 },{}],12:[function(require,module,exports){
 "use strict";
-var API = require("./api")["default"];
-
 var cbs = {};
 var isReady = false;
 var queue = [];
+
+var runner = $('<iframe>', {
+  src: 'bower_components/slide.js/dist/views/auth.html'
+});
+
+$('body').append(runner);
+runner.hide();
+
+var process = function (msg) {
+  runner[0].contentWindow.postMessage(msg, '*');
+};
 
 window.addEventListener('message', function(evt) {
   var data = evt.message || evt.data;
@@ -33740,26 +33739,17 @@ window.addEventListener('message', function(evt) {
   delete cbs[data.channel];
 });
 
-var runner = $("<iframe>", {
-  src: 'bower_components/slide.js/dist/views/auth.html'
-});
-
-$("body").append(runner);
-runner.hide();
-var process = function(msg) {
-  runner[0].contentWindow.postMessage(msg, "*");
-};
-
 var Storage = {
   accessor: function(payload) {
-    if( isReady )
+    if (isReady) {
       process(payload);
-    else
+    } else {
       queue.push(payload);
+    }
   },
   persist: function(key, value) {
     this.accessor({
-      verb: "set",
+      verb: 'set',
       key: key,
       value: value
     });
@@ -33768,7 +33758,7 @@ var Storage = {
     var channel = Math.floor(Math.random() * 10000);
     cbs[channel] = cb;
     this.accessor({
-      verb: "get",
+      verb: 'get',
       key: key,
       channel: channel
     });
@@ -33776,7 +33766,7 @@ var Storage = {
 };
 
 exports["default"] = Storage;
-},{"./api":10}],13:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 "use strict";
 var Block = require("../models/block")["default"];
 
@@ -33934,6 +33924,7 @@ Form.prototype.build = function (userData, options) {
 
   this.$form.append(this._createSubmitButton());
   this.initializeListeners();
+  this.initializeMasks();
 };
 
 Form.prototype._createSubmitButton = function () {
@@ -33961,6 +33952,12 @@ Form.prototype.initializeListeners = function () {
   });
 };
 
+Form.prototype.initializeMasks = function () {
+  $.extend($.inputmask.defaults, {
+    'autoUnmask': true
+  });
+};
+
 Form.prototype._isCard = function (identifier) {
   return Form.CARDS.indexOf(identifier) !== -1;
 };
@@ -33973,31 +33970,63 @@ Form.prototype._getDataForIdentifier = function (identifier) {
 Form.prototype._createSlider = function (fields) {
   var slider = $('<ul></ul>', { class: 'slider'});
   return slider.append.apply(slider, fields);
-},
+};
+
+Form._bindMask = function (identifier, field, $input) {
+  var phonePrefixes = ['slide.life:mobile-phone', 'slide.life:home-phone', 'slide.life:work-phone'];
+  var phoneNumbers = phonePrefixes.map(function (prefix) { return prefix + '.number'; });
+  var phoneCountryCodes = phonePrefixes.map(function (prefix) { return prefix + '.country-code'; });
+
+  if (field._type === 'date') {
+    if (!field._format) { throw new Error('A date type must have an associated format'); }
+    $input.inputmask({ mask: field._format });
+  } else if (phoneNumbers.indexOf(identifier) > -1) {
+    $input.inputmask({ mask: '(999) 999-9999' });
+  } else if (phoneCountryCodes.indexOf(identifier) > -1) {
+    $input.inputmask({ mask: '+9[9[9]]', placeholder: '', greedy: false });
+  } else if (identifier === 'slide.life:bank.card.number') {
+    $input.inputmask({ mask: '9999 9999 9999 9999' });
+  } else if (identifier === 'slide.life:bank.card.security-code') {
+    $input.inputmask({ mask: '999[9]', greedy: false });
+  } else if (identifier === 'slide.life:ssn') {
+    $input.inputmask({ mask: '999-99-9999', greedy: false });
+  } else if (identifier === 'slide.life:email') {
+    $input.inputmask({ alias: 'email' });
+  }
+};
 
 Form.prototype._createField = function (identifier, field, data, options /* = {} */) {
   options = options || {};
 
   var $listItem = $('<li></li>', { class: 'field' }),
       $labelWrapper = $('<div></div>', { 'class': 'field-label-wrapper' }),
-      $inputWrapper = $('<div></div>', { 'class': 'field-input-wrapper' });
+      $inputWrapper = $('<div></div>', { 'class': 'field-input-wrapper' }),
+      $input;
 
-  var $input = $('<input>', $.extend({
-    type: 'text',
-    class: 'field-input',
-    value: data,
-    autocorrect: 'off',
-    autocapitalize: 'off',
-    'data-slide-identifier': identifier
-  }, options));
-
-  if (field._type === 'date') {
-    if (!field._format) { throw new Error('A date field must have an associated format'); }
-    $input.inputmask({
-      mask: field._format,
-      autoUnmask: true
-    });
+  if (field._type === 'select') {
+    $input = $('<select></select>');
+    if (!field._options) {
+      throw new Error('A select type must have a list of options');
+    } else {
+      field._options.forEach(function (option) {
+        var $li = $('<li></li>', {
+          value: option
+        }).text(option);
+        $input.append($li);
+      });
+    }
+  } else {
+    $input = $('<input>', $.extend({
+      type: 'text',
+      class: 'field-input',
+      value: data,
+      autocorrect: 'off',
+      autocapitalize: 'off'
+    }, options));
   }
+
+  $input.attr('data-slide-identifier', identifier);
+  Form._bindMask(identifier, field, $input);
 
   $inputWrapper.append($input);
   $labelWrapper.append($('<label></label>').text(field._description));
@@ -34024,7 +34053,7 @@ Form.prototype._createButton = function () {
   var $button = $('<div class="add-button">+</div>');
   var $buttonInnerWrapper = $('<div class="add-button-inner-wrapper"></div>').append($button);
   return $('<div class="add-button-wrapper"></div>').append($buttonInnerWrapper);
-}
+};
 
 Form.prototype._buildCard = function (identifier, field, card) {
   var $cardHeader = this.createCardHeader(identifier, field, card);
@@ -34044,7 +34073,7 @@ Form.prototype.createCard = function (identifier, field) {
     var $card = this._buildCard(identifier, field, {});
     [$card, $newCard].forEach(function ($c) {
       $c.find('.card-subfields').show();
-    })
+    });
     cards.push($card);
   }
 
