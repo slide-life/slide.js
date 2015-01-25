@@ -76,6 +76,9 @@ User.prototype.persist = function() {
 };
 
 User.prototype.loadRelationships = function(success) {
+  new User.get(this.number).get(function(user) {
+    console.log('user', user);
+  });
   API.get('/users/' + this.number + '/vendor_users', {
     success: function (encryptedUuids) {
       var uuids = encryptedUuids.map(function(encryptedUuid) {

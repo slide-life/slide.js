@@ -63,6 +63,14 @@ VendorUser.createRelationship = function(user, vendor, cb) {
       var vendorUser = new VendorUser(resp.uuid);
       vendorUser.fromObject(resp);
       // VendorUser.persist(vendorUser);
+      // TODO: NB: venedor users are overwritten, not appended
+      API.patch('/users/' + user.number + '/profile', {
+        data: {
+          patch: {_vendor_users: [resp.uuid]}
+        }, success: function(profile) {
+          console.log(profile);
+        }
+      });
       if (cb) { cb(vendorUser); }
     }
   });
