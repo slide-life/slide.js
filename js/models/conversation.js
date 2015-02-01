@@ -4,7 +4,6 @@ import Crypto from '../utils/crypto';
 var Conversation = function(upstream, downstream, cb, key) {
   // NB. The fourth argument, key, is used in forming a form conversation.
   this.symmetricKey = key || Crypto.AES.generateKey();
-  this.symmetricKey = Crypto.uglyPayload("1vp2gWu3MKtho4ib2RjVijWQBCjoYqhi4CGQg4QkN5c=");
   this.key = Crypto.encrypt(this.symmetricKey, downstream.key);
   this.upstream_type = upstream.type;
   this.downstream_type = downstream.type;

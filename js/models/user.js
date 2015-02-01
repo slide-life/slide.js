@@ -81,7 +81,6 @@ User.prototype.loadRelationships = function(success) {
   API.get('/users/' + this.number + '/vendor_users', {
     success: function (data) {
       var uuids = Crypto.AES.decrypt(data, self.symmetricKey);
-      console.log(uuids);
       var encryptedUuids;
       try {
         encryptedUuids = JSON.parse(uuids || '[]');
@@ -140,9 +139,11 @@ User.loadFromStorage = function (success, fail) {
 User.load = function(number, cb) {
   var self = this;
   this.loadFromStorage(cb, function () {
-    self.register(number, function(user) {
-      user.persist();
-      cb(user);
+    number(function(number) {
+      self.register(number, function(user) {
+        user.persist();
+        cb(user);
+      });
     });
   });
 };
