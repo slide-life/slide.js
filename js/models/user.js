@@ -168,13 +168,13 @@ User.register = function(number, cb, fail) {
   });
 };
 
-User.prototype.addRequest = function(uuid) {
+User.prototype.addRequest = function(uuid, cb) {
   // TODO: NB: vendor users are overwritten, not appended
   API.patch('/users/' + this.number + '/profile', {
     data: {
       patch: {_vendor_users: Crypto.AES.encrypt(JSON.stringify([uuid]), this.symmetricKey)}
     }, success: function(profile) {
-      console.log(profile);
+      cb();
     }
   });
 };

@@ -52,6 +52,38 @@ describe('Vendor', function () {
     });
   });
 
+  describe('.getResponsesForForm()', function () {
+    it('should get responses for a vendor form', function (done) {
+      //vendor, user, vendoruser, submit, check responses
+      var testData = { 'slide/life:bank/card': '1111' };
+      var organization = 'slide.life';
+
+      vendor(function (vendor) {
+        user(function (user) {
+          Slide.VendorUser.createRelationship(user, vendor, function (vendorUser) {
+            vendor.createForm('test', 'test', ['slide.life:bank.card'], function (vendorForm) {
+              new Slide.Actor().initialize(function (actor) {
+                actor.openConversationWithKey(vendor.getKeyForVendorUser(vendorUser), { //TODO: vendor form class doesn't actually deal with this format
+                  type: 'vendor_form',
+                  downstream: vendorForm.id
+                }, function (conversation) {
+                  vendor.listen(function (message) {
+                    vendor.getResponsesForForm(vendorForm, function (responses) {
+                      assert.equal(responses[0].user.uuid, vendorUser.uuid);
+                      assert.equal(responses[0].fields['slide.life:bank.card'], '1111');
+                      done();
+                    });
+                  });
+                  conversation.submit(vendorUser.uuid, testData);
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+
   describe('checksum tests', function () {
     var vendor, vendor2;
 
