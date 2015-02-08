@@ -26,9 +26,17 @@ describe('User', function () {
 
   describe('.patch()', function () {
     it("should patch a user's profile", function (done) {
-      user.patch({ private: { name: { first: ['Test first name'] } } }, {
+      var FIRST_NAME = 'Test first name';
+      var LAST_NAME  = 'Test last name';
+      user.patch({ private: { name: { first: [FIRST_NAME] } } }, {
         success: function (user) {
-          done();
+          user.patch({ private: { name: { last: [LAST_NAME] } } }, {
+            success: function (user) {
+              assert.equal(user.profile.private.name.first[0], FIRST_NAME);
+              assert.equal(user.profile.private.name.last[0], LAST_NAME);
+              done();
+            }
+          });
         }
       });
     });
