@@ -1,33 +1,14 @@
 module.exports = function (grunt) {
   grunt.initConfig({
-    clean: {
-      build: ['build/'],
-      release: ['dist']
-    },
-
-    transpile: {
-      main: {
-        type: 'cjs',
-        files: [{
-          cwd: 'js/',
-          expand: true,
-          dest: 'build/',
-          src: '**/*.js'
-        }]
-      }
-    },
-
     browserify: {
       build: {
-        src: 'build/*.js',
+        src: 'lib/*.js',
         dest: 'build/browser.js'
       }
     },
 
     exec: {
-      bundle: 'cd bower_components/forge; npm run bundle',
-      copyStatic: 'mkdir dist; cp -R views dist; cp -R img dist',
-      copy: 'cp -R views/auth.html dist/views/auth.html'
+      bundle: 'cd bower_components/forge; npm run bundle'
     },
 
     concat: {
@@ -36,46 +17,22 @@ module.exports = function (grunt) {
       },
 
       dist: {
-        src: [
-          'bower_components/forge/js/forge.bundle.js',
-          'bower_components/jquery.inputmask/dist/inputmask/jquery.inputmask.js',
-          'bower_components/jquery.inputmask/dist/inputmask/jquery.inputmask.extensions.js',
-          'bower_components/jquery.inputmask/dist/inputmask/jquery.inputmask.date.extensions.js',
-          'bower_components/slick-carousel/slick/slick.js',
-          'build/browser.js'],
-        dest: 'dist/js/slide.js'
-      },
-
-      jquery: {
-        src: ['bower_components/jquery/dist/jquery.min.js', 'dist/js/slide.js'],
-        dest: 'dist/js/slide.jquery.js'
+        src: ['bower_components/forge/js/forge.bundle.js', 'build/browser.js'],
+        dest: 'dist/slide.js'
       }
     },
 
     jshint: {
-      files: ['js/**/*.js'],
+      files: ['lib/**/*.js'],
       options: {
         jshintrc: '.jshintrc'
       }
     },
 
-    sass: {
-      dist: {
-        files: {
-          'dist/css/slide.css': 'scss/slide.scss'
-        }
-      }
-    },
-
     watch: {
       jshint: {
-        files: ['js/**/*.js'],
+        files: ['lib/**/*.js'],
         tasks: ['jshint']
-      },
-
-      sass: {
-        files: ['scss/**/*.scss'],
-        tasks: ['sass']
       }
     },
 
@@ -93,13 +50,24 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-browserify');
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-contrib-concat');
-  grunt.loadNpmTasks('grunt-es6-module-transpiler');
   grunt.loadNpmTasks('grunt-exec');
   grunt.loadNpmTasks('grunt-contrib-jshint');
-  grunt.loadNpmTasks('grunt-contrib-sass');
   grunt.loadNpmTasks('grunt-contrib-watch');
   grunt.loadNpmTasks('grunt-mocha-test');
 
-  grunt.registerTask('default', ['clean', 'transpile', 'browserify', 'exec', 'concat', 'sass']);
-  grunt.registerTask('test', ['transpile', 'mochaTest']);
+  grunt.registerTask('environment', function () {
+    if (!process.env.TARGET || process.env.TARGET === 'node') {
+      global.env = {};
+      global.env.TARGET = 'node';
+      global.env.HOST = 'localhost:9292';
+    } else if (process.env.TARGET === 'browser') {
+      window.env = {};
+      window.env.TARGET = 'browser';
+      window.env.HOST = 'localhost:9292';
+    } else {
+      throw new Error('Invalid target');
+    }
+  });
+  grunt.registerTask('default', ['environment', 'browserify', 'exec', 'concat']);
+  grunt.registerTask('test', ['environment', 'mochaTest']);
 };

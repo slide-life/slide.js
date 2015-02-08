@@ -1,18 +1,26 @@
-require('../mocks');
 var assert = require('assert');
-var Slide = require('../../build/slide').default;
+var Slide = require('../../lib/slide');
 
 describe('User', function () {
+  var user;
 
-  describe('#register()', function () {
-    it('should register a user', function (done) {
-      var number = "" + Math.floor(Math.random() * 1e7);
-      Slide.User.register(number, function (u) {
-        assert.equal(u.number, number);
+  before(function (done) {
+    Slide.User.create({ value: Math.floor(Math.random() * 1e7), type: 'phone' }, 'test_password_123', {
+      success: function (u) {
+        user = u;
         done();
-      });
+      }
     });
   });
 
+  describe('#get()', function () {
+    it('should get a user by id', function (done) {
+      Slide.User.get(user.id, {
+        success: function (u) {
+          assert.equal(user.id, u.id);
+          done();
+        }
+      });
+    });
+  });
 });
-
