@@ -13,11 +13,21 @@ describe('User', function () {
     });
   });
 
-  describe('#get()', function () {
-    it('should get a user by id', function (done) {
-      Slide.User.get(user.id, {
-        success: function (u) {
-          assert.equal(user.id, u.id);
+  // describe('#get()', function () {
+  //   it('should get a user by id', function (done) {
+  //     Slide.User.get(user.id, {
+  //       success: function (u) {
+  //         assert.equal(user.id, u.id);
+  //         done();
+  //       }
+  //     });
+  //   });
+  // });
+
+  describe('.patch()', function () {
+    it("should patch a user's profile", function (done) {
+      user.patch({ private: { name: { first: ['Test first name'] } } }, {
+        success: function (user) {
           done();
         }
       });
