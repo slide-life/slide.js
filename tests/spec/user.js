@@ -41,4 +41,14 @@ describe('User', function () {
       });
     });
   });
+
+  describe('.addDevice()', function () {
+    it('should add a device to a user', function (done) {
+      user.addDevice('ios', 'Test registration id', {
+        success: function (user) {
+          done();
+        }
+      })
+    });
+  })
 });
