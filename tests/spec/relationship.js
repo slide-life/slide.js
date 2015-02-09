@@ -58,4 +58,15 @@ describe('Relationship', function () {
       });
     });
   });
+
+  describe('.getConversations()', function () {
+    it('should return a list of conversations on a relationship', function (done) {
+      relationship.getConversations({
+        success: function (conversations) {
+          assert.equal(conversations.length, 2);
+          done();
+        }
+      });
+    });
+  });
 });

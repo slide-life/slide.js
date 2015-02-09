@@ -28730,6 +28730,19 @@ var Conversation = require('./conversation');
 
 function Relationship () { }
 
+Relationship.get = function (id, cbs) {
+  API.get('/relationships/' + id, cbs);
+}
+
+Relationship.prototype.getConversations = function (cbs) {
+  API.get('/relationships/' + this.id, {
+    success: function (relationship) {
+      cbs.success(relationship.conversations);
+    },
+    failure: cbs.failure
+  });
+};
+
 Relationship.prototype.createConversation = function (name, cbs) {
   API.post('/relationships/' + this.id + '/conversations', {
     data: {
