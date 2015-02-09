@@ -28529,10 +28529,13 @@ var Crypto = require('../utils/crypto');
 
 var Listener = require('./listener');
 var Relationship = require('./relationship');
+var Message = require('./message');
 
 function Actor () {
   this.profile = this._generateProfile();
   this.keys    = this._generateKeys();
+
+  this.relationships = {};
 }
 
 /* Static methods */
@@ -28573,25 +28576,57 @@ Actor.prototype._generateKeys = function () {
   };
 };
 
+Actor.prototype.encryptKey = function (key) {
+  return Crypto.RSA.encryptSymmetricKey(key, this.keys.public);
+};
+
+Actor.prototype.decryptKey = function (key) {
+  return Crypto.RSA.decryptSymmetricKey(key, this.keys.private);
+};
+
 Actor.prototype.createRelationship = function (actor, cbs) {
   var self = this;
   var key = Crypto.AES.generateKey();
+  var encryptedKey = actor.encryptKey(key);
   API.post('/relationships', {
     data: {
       current_user_temp: this.id, // TODO: use API authentication
       actor: actor.id,
-      key: Crypto.RSA.encryptSymmetricKey(key, actor.keys.public)
+      key: encryptedKey
     },
     success: function (rel) {
-      var relationship   = new Relationship();
-      relationship.id    = rel.id;
+      var relationship   = Relationship.fromObject(rel);
       relationship.left  = self;
       relationship.right = actor;
       relationship.key   = key;
+
+      self.relationships[relationship.id] = relationship;
       cbs.success(relationship);
     },
     failure: cbs.failure
   });
+};
+
+Actor.prototype.getRelationship = function (relationshipId, cbs) {
+  var self = this;
+
+  if (this.relationships[relationshipId]) {
+    cbs.success(this.relationships[relationshipId]);
+  } else {
+    Relationship.get(relationshipId, {
+      success: function (relationship) {
+        if (!relationship.key) {
+          if (self.id === relationship.leftId) {
+            relationship.key = self.decryptKey(relationship.leftKey);
+          } else if (self.id === relationship.rightId) {
+            relationship.key = self.decryptKey(relationship.rightKey);
+          }
+        }
+        cbs.success(relationship);
+      },
+      failure: cbs.failure
+    });
+  }
 };
 
 Actor.prototype.patch = function (profile, cbs) {
@@ -28609,9 +28644,19 @@ Actor.prototype.patch = function (profile, cbs) {
 };
 
 Actor.prototype.listen = function (onmessage) {
+  var self = this;
+
   var socket = API.socket('/actors/' + this.id + '/listen');
   socket.onmessage = function (event) {
-    onmessage(JSON.parse(event.data));
+    var parsedEvent           = JSON.parse(event.data);
+    var relationshipId        = parsedEvent.relationship.id;
+    self.getRelationship(relationshipId, {
+      success: function (relationship) {
+        var encryptedMessage  = Message.fromObject(parsedEvent.message);
+        var decryptedMessage  = relationship.decryptMessage(encryptedMessage);
+        onmessage(decryptedMessage, socket);
+      }
+    });
   };
 };
 
@@ -28629,7 +28674,7 @@ Actor.prototype.addWebhook = function (scope, url, method, cbs) {
 
 exports = module.exports = Actor;
 
-},{"../utils/api":8,"../utils/crypto":9,"./listener":3,"./relationship":5}],2:[function(require,module,exports){
+},{"../utils/api":8,"../utils/crypto":9,"./listener":3,"./message":4,"./relationship":5}],2:[function(require,module,exports){
 var API = require('../utils/api');
 var Crypto = require('../utils/crypto');
 
@@ -28637,8 +28682,32 @@ var Message = require('./message');
 
 function Conversation () { }
 
+Conversation.fromObject = function (obj) {
+  var conversation = new Conversation();
+  conversation.id = obj.id;
+  conversation.name = obj.name;
+  conversation.relationshipId = obj.relationship_id;
+  return conversation;
+};
+
+Conversation.prototype.getRelationship = function (cbs) {
+  var self = this;
+
+  if (this.relationship) {
+    cbs.success(this.relationship);
+  } else {
+    API.get('/relationships/' + this.relationshipId, {
+      success: function (relationship) {
+        self.relationship = relationship;
+        cbs.success(relationship);
+      },
+      failure: cbs.failure
+    })
+  }
+};
+
 Conversation.prototype.request = function (to, blocks, cbs) {
-  API.post('/relationships/' + this.relationship + '/conversations/' + this.id + '/requests', {
+  API.post('/relationships/' + this.relationshipId + '/conversations/' + this.id + '/requests', {
     data: {
       to: to.id, // TODO: will become redundant after authentication
       blocks: blocks
@@ -28655,33 +28724,47 @@ Conversation.prototype.request = function (to, blocks, cbs) {
 };
 
 Conversation.prototype.respond = function (request, data, cbs) {
-  API.post('/relationships/' + this.relationship + '/conversations/' + this.id + '/requests/' + request.id, {
-    data: {
-      data: data
-    },
-    success: function (m) {
-      var response     = new Message.Response();
-      response.id      = m.id;
-      response.request = request.id;
-      response.data    = data;
-      cbs.success(response);
+  var self = this;
+
+  this.getRelationship({
+    success: function (relationship) {
+      API.post('/relationships/' + relationship.id + '/conversations/' + self.id + '/requests/' + request.id, {
+        data: {
+          data: relationship.encryptData(data)
+        },
+        success: function (m) {
+          var response     = new Message.Response();
+          response.id      = m.id;
+          response.request = request.id;
+          response.data    = data;
+          cbs.success(response);
+        },
+        failure: cbs.failure
+      });
     },
     failure: cbs.failure
   });
 };
 
 Conversation.prototype.deposit = function (to, data, cbs) {
-  API.post('/relationships/' + this.relationship + '/conversations/' + this.id + '/deposits', {
-    data: {
-      to: to.id, // TODO: will become redundant after authentication
-      data: data
-    },
-    success: function (m) {
-      var deposit  = new Message.Deposit();
-      deposit.id   = m.id;
-      deposit.to   = to;
-      deposit.data = data;
-      cbs.success(deposit);
+  var self = this;
+
+  this.getRelationship({
+    success: function (relationship) {
+      API.post('/relationships/' + relationship.id + '/conversations/' + self.id + '/deposits', {
+        data: {
+          to: to.id, // TODO: will become redundant after authentication
+          data: relationship.encryptData(data)
+        },
+        success: function (m) {
+          var deposit  = new Message.Deposit();
+          deposit.id   = m.id;
+          deposit.to   = to;
+          deposit.data = data;
+          cbs.success(deposit);
+        },
+        failure: cbs.failure
+      });
     },
     failure: cbs.failure
   });
@@ -28716,43 +28799,113 @@ Response.prototype = Object.create(Message.prototype);
 function Deposit () { }
 Deposit.prototype = Object.create(Message.prototype);
 
-exports = module.exports = {
-  Request: Request,
-  Response: Response,
-  Deposit: Deposit
+Message.Request = Request;
+Message.Response = Response;
+Message.Deposit = Deposit;
+
+Message.fromObject = function (obj) {
+  var message;
+  if (obj.message_type === 'request') {
+    message = new Request();
+    message.blocks = obj.blocks;
+  } else if (obj.message_type === 'deposit') {
+    message = new Deposit();
+    message.data = obj.data;
+  } else if (obj.message_type === 'response') {
+    message = new Response();
+    message.data = obj.data;
+  }
+
+  message.id = obj.id;
+  message.conversationId = obj.conversation_id;
+
+  return message;
 };
+
+exports = module.exports = Message;
 
 },{}],5:[function(require,module,exports){
 var API = require('../utils/api');
 var Crypto = require('../utils/crypto');
 
 var Conversation = require('./conversation');
+var Message = require('./message');
 
 function Relationship () { }
+Relationship.fromObject = function (obj) {
+  var relationship = new Relationship();
+  relationship.id = obj.id;
+  relationship.leftId = obj.left;
+  relationship.rightId = obj.right;
+  relationship.leftKey = obj.left_key;
+  relationship.rightKey = obj.right_key;
+  relationship.conversations = (obj.conversations || []).map(Conversation.fromObject);
+  return relationship;
+};
 
 Relationship.get = function (id, cbs) {
-  API.get('/relationships/' + id, cbs);
-}
-
-Relationship.prototype.getConversations = function (cbs) {
-  API.get('/relationships/' + this.id, {
+  API.get('/relationships/' + id, {
     success: function (relationship) {
-      cbs.success(relationship.conversations);
+      cbs.success(Relationship.fromObject(relationship));
     },
     failure: cbs.failure
   });
 };
 
+Relationship.prototype.getConversations = function (cbs) {
+  API.get('/relationships/' + this.id + '/conversations', {
+    success: function (conversations) {
+      cbs.success(conversations.map(Conversation.fromObject));
+    },
+    failure: cbs.failure
+  });
+};
+
+Relationship.prototype.encryptData = function (data) {
+  return Crypto.AES.encryptData(data, this.key);
+};
+
+Relationship.prototype.decryptData = function (data) {
+  return Crypto.AES.decryptData(data, this.key);
+};
+
+Relationship.prototype.encryptMessage = function (message) { //only for deposit or response
+  var encryptedMessage;
+  if (message.type === 'deposit') {
+    encryptedMessage = new Message.Deposit();
+  } else if (message.type === 'response') {
+    encryptedMessage = new Message.Response();
+  }
+
+  encryptedMessage.data = this.encryptData(message.data);
+  return encryptedMessage;
+};
+
+Relationship.prototype.decryptMessage = function (message) {
+  var decryptedMessage;
+  if (message instanceof Message.Deposit) {
+    decryptedMessage = new Message.Deposit();
+    decryptedMessage.data = this.decryptData(message.data);
+  } else if (message instanceof Message.Response) {
+    decryptedMessage = new Message.Response();
+    decryptedMessage.data = this.decryptData(message.data);
+  } else if (message instanceof Message.Request) {
+    decryptedMessage = message;
+  }
+
+  return decryptedMessage;
+};
+
 Relationship.prototype.createConversation = function (name, cbs) {
+  var self = this;
+
   API.post('/relationships/' + this.id + '/conversations', {
     data: {
       name: name
     },
     success: function (conv) {
-      var conversation = new Conversation();
-      conversation.id = conv.id;
-      conversation.name = conv.name;
-      conversation.relationship = conv.relationship_id;
+      var conversation = Conversation.fromObject(conv);
+      conversation.relationship = self;
       cbs.success(conversation);
     },
     failure: cbs.failure
@@ -28761,7 +28914,7 @@ Relationship.prototype.createConversation = function (name, cbs) {
 
 exports = module.exports = Relationship;
 
-},{"../utils/api":8,"../utils/crypto":9,"./conversation":2}],6:[function(require,module,exports){
+},{"../utils/api":8,"../utils/crypto":9,"./conversation":2,"./message":4}],6:[function(require,module,exports){
 var API = require('../utils/api');
 var Crypto = require('../utils/crypto');
 
@@ -28890,7 +29043,7 @@ exports = module.exports = function (forge) {
       return clean;
     },
 
-    encryptData: function(data, key) {
+    encryptData: function(data, key) { //TODO: rewrite this for recursion
       var encrypted = {};
       for( var k in data ) {
         encrypted[k] = base64.encode(this.encrypt(data[k], key));
@@ -28982,8 +29135,8 @@ exports = module.exports = function (forge) {
       return base64.encode(this.encrypt(symmetric, key));
     },
 
-    descryptSymmetricKey: function (symmetric, key) {
-      return base64.decode(this.decrypt(symmetric, key));
+    decryptSymmetricKey: function (symmetric, key) {
+      return this.decrypt(base64.decode(symmetric), key);
     }
   };
 };

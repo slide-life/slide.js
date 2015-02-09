@@ -25,32 +25,53 @@ describe('Actor', function () {
   });
 
   describe('.listen()', function () {
-    var anotherActor;
+    var anotherActor, relationship;
 
     before(function (done) {
       Slide.Actor.create({
         success: function (a) {
           anotherActor = a;
-          done();
+          anotherActor.createRelationship(actor, {
+            success: function (r) {
+              relationship = r;
+              done();
+            }
+          });
         }
       });
     });
 
     it('should listen for events', function (done) {
-      anotherActor.createRelationship(actor, { //anotherActor as organization
-        success: function (relationship) {
-          relationship.createConversation('Test conversation', {
-            success: function (conversation) {
-              actor.listen(function (event) {
-                assert.equal(event.relationship.id, relationship.id);
-                assert.equal(event.conversation.id, conversation.id);
-                assert.equal(event.message.message_type, 'request');
-                assert.equal(event.message.blocks[0], 'bank.card');
-                done();
-              });
+      relationship.createConversation('Test conversation', {
+        success: function (conversation) {
+          actor.listen(function (message, socket) {
+            socket.close();
+            assert.equal(message.blocks[0], 'bank.card');
+            done();
+          });
 
-              conversation.request(actor, ['bank.card'], {
-                success: function () {}
+          conversation.request(actor, ['bank.card'], {
+            success: function () {}
+          });
+        }
+      });
+    });
+
+    it('should listen for responses', function (done) {
+      var data = { 'bank.card': 'Test' };
+      relationship.createConversation('Test conversation', {
+        success: function (conversation) {
+          anotherActor.listen(function (message, socket) {
+            socket.close();
+            assert.equal(message.data['bank.card'], 'Test');
+            done();
+          });
+
+          conversation.request(actor, ['bank.card'], {
+            success: function (request) {
+              conversation.respond(request, data, {
+                success: function () {
+                }
               });
             }
           });
