@@ -23,4 +23,53 @@ describe('Actor', function () {
       });
     });
   });
+
+  describe('.listen()', function () {
+    var anotherActor;
+
+    before(function (done) {
+      Slide.Actor.create({
+        success: function (a) {
+          anotherActor = a;
+          done();
+        }
+      });
+    });
+
+    it('should listen for events', function (done) {
+      anotherActor.createRelationship(actor, { //anotherActor as organization
+        success: function (relationship) {
+          relationship.createConversation('Test conversation', {
+            success: function (conversation) {
+              actor.listen(function (event) {
+                assert.equal(event.relationship.id, relationship.id);
+                assert.equal(event.conversation.id, conversation.id);
+                assert.equal(event.message.message_type, 'request');
+                assert.equal(event.message.blocks[0], 'bank.card');
+                done();
+              });
+
+              conversation.sendRequest(actor, ['bank.card'], {
+                success: function () {}
+              });
+            }
+          });
+        }
+      });
+    });
+  });
+
+  describe('.addListener()', function () {
+    it('should add a listener', function (done) {
+      actor.addListener({
+        type: 'webhook',
+        url: 'http://google.com',
+        method: 'post'
+      }, {
+        success: function () {
+          done();
+        }
+      });
+    });
+  });
 });
