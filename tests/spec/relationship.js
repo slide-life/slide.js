@@ -4,9 +4,9 @@ var Slide = require('../../lib/slide');
 function requestAndRespond (individual, organisation, relationship, data, cbs) {
   relationship.createConversation('Test conversation', {
     success: function (conversation) {
-      conversation.sendRequest(individual, ['bank.card'], {
+      conversation.request(individual, ['bank.card'], {
         success: function (request) {
-          conversation.sendResponse(request, data, cbs);
+          conversation.respond(request, data, cbs);
         }
       });
     }

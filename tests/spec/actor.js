@@ -49,7 +49,7 @@ describe('Actor', function () {
                 done();
               });
 
-              conversation.sendRequest(actor, ['bank.card'], {
+              conversation.request(actor, ['bank.card'], {
                 success: function () {}
               });
             }
