@@ -5,7 +5,7 @@ describe('User', function () {
   var user;
 
   before(function (done) {
-    Slide.User.create({ value: Math.floor(Math.random() * 1e7), type: 'phone' }, 'test_password_123', {
+    Slide.User.create({ value: 12013514474, type: 'phone' }, 'test_password_123', {
       success: function (u) {
         user = u;
         done();
