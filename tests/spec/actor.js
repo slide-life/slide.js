@@ -61,11 +61,7 @@ describe('Actor', function () {
 
   describe('.addListener()', function () {
     it('should add a listener', function (done) {
-      actor.addListener({
-        type: 'webhook',
-        url: 'http://google.com',
-        method: 'post'
-      }, {
+      actor.addWebhook({}, 'http://google.com', 'post', {
         success: function () {
           done();
         }
