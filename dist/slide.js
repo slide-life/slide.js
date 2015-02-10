@@ -28674,7 +28674,7 @@ Actor.prototype.addWebhook = function (scope, url, method, cbs) {
 
 exports = module.exports = Actor;
 
-},{"../utils/api":8,"../utils/crypto":9,"./listener":3,"./message":4,"./relationship":5}],2:[function(require,module,exports){
+},{"../utils/api":9,"../utils/crypto":10,"./listener":4,"./message":5,"./relationship":6}],2:[function(require,module,exports){
 var API = require('../utils/api');
 var Crypto = require('../utils/crypto');
 
@@ -28772,7 +28772,51 @@ Conversation.prototype.deposit = function (to, data, cbs) {
 
 exports = module.exports = Conversation;
 
-},{"../utils/api":8,"../utils/crypto":9,"./message":4}],3:[function(require,module,exports){
+},{"../utils/api":9,"../utils/crypto":10,"./message":5}],3:[function(require,module,exports){
+var API = require('../utils/api');
+
+function Identifier () { }
+
+function Phone (value) {
+  this.value = value;
+  this.type = 'phone';
+}
+Phone.prototype = Object.create(Identifier.prototype);
+
+Phone.prototype.toObject = function () {
+  return ({
+    id: this.id,
+    value: this.value,
+    type: this.type
+  });
+};
+
+function Email (value) {
+  this.value = value;
+  this.type = 'email';
+}
+Email.prototype = Object.create(Identifier.prototype);
+
+Identifier.Phone = Phone;
+Identifier.Email = Email;
+
+Identifier.fromObject = function (obj) {
+  var identifier;
+  if (obj.identifier_type === 'phone') {
+    identifier = new Phone();
+  } else if (obj.identifier_type === 'email') {
+    identifier = new Email();
+  }
+
+  identifier.value = obj.value;
+  identifier.id = obj.id;
+  identifier.userId = obj.user_id;
+  return identifier;
+};
+
+exports = module.exports = Identifier;
+
+},{"../utils/api":9}],4:[function(require,module,exports){
 function Listener () { }
 
 Listener.buildWebhook = function (scope, url, method) {
@@ -28787,7 +28831,7 @@ Listener.buildWebhook = function (scope, url, method) {
 
 exports = module.exports = Listener;
 
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 function Message () { }
 
 function Request () { }
@@ -28824,7 +28868,7 @@ Message.fromObject = function (obj) {
 
 exports = module.exports = Message;
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 var API = require('../utils/api');
 var Crypto = require('../utils/crypto');
 
@@ -28914,16 +28958,17 @@ Relationship.prototype.createConversation = function (name, cbs) {
 
 exports = module.exports = Relationship;
 
-},{"../utils/api":8,"../utils/crypto":9,"./conversation":2,"./message":4}],6:[function(require,module,exports){
+},{"../utils/api":9,"../utils/crypto":10,"./conversation":2,"./message":5}],7:[function(require,module,exports){
 var API = require('../utils/api');
 var Crypto = require('../utils/crypto');
 
 var Actor = require('./actor');
+var Identifier = require('./identifier');
 
 function User (identifier) {
-  this.profile    = this._generateProfile();
-  this.keys       = this._generateKeys();
-  this.identifier = identifier;
+  this.profile     = this._generateProfile();
+  this.keys        = this._generateKeys();
+  this.identifiers = [identifier];
 }
 
 User.prototype = Object.create(Actor.prototype);
@@ -28937,7 +28982,8 @@ User.create = function (identifier /* { identifier, type } */, password, cbs) {
       key: user.keys.public
     },
     success: function (data) {
-      user.id = data.id;
+      user.id          = data.id;
+      user.identifiers = data.identifiers.map(Identifier.fromObject);
       cbs.success(user);
     },
     failure: cbs.failure
@@ -28957,23 +29003,48 @@ User.prototype.addDevice = function (type, id, cbs) {
   });
 };
 
+User.prototype.addIdentifier = function (identifier, cbs) {
+  var self = this;
+
+  API.post('/users/' + this.id + '/identifiers', {
+    data: identifier.toObject(),
+    success: function (i) {
+      var identifier = Identifier.fromObject(i);
+      self.identifiers.push(identifier);
+      cbs.success(identifier);
+    },
+    failure: cbs.failure
+  });
+};
+
+User.prototype.verifyIdentifier = function (identifier, verificationCode, cbs) {
+  API.post('/users/' + this.id + '/identifiers/' + identifier.id + '/verify', {
+    data: {
+      verification_code: verificationCode
+    },
+    success: cbs.success,
+    failure: cbs.failure
+  });
+};
+
 exports = module.exports = User;
 
-},{"../utils/api":8,"../utils/crypto":9,"./actor":1}],7:[function(require,module,exports){
+},{"../utils/api":9,"../utils/crypto":10,"./actor":1,"./identifier":3}],8:[function(require,module,exports){
 var Slide = {
   Actor: require('./models/actor'),
   User: require('./models/user'),
+  Identifier: require('./models/identifier'),
   Relationship: require('./models/relationship')
 };
 
 exports = module.exports = Slide;
 
-},{"./models/actor":1,"./models/relationship":5,"./models/user":6}],8:[function(require,module,exports){
+},{"./models/actor":1,"./models/identifier":3,"./models/relationship":6,"./models/user":7}],9:[function(require,module,exports){
 var API = require('./api/' + env.TARGET + '.js');
 
 exports = module.exports = new API();
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 var forge = require('node-forge');
 
 exports = module.exports = {
@@ -28981,7 +29052,7 @@ exports = module.exports = {
   AES: require('./crypto/aes')(forge)
 };
 
-},{"./crypto/aes":10,"./crypto/rsa":12,"node-forge":14}],10:[function(require,module,exports){
+},{"./crypto/aes":11,"./crypto/rsa":13,"node-forge":15}],11:[function(require,module,exports){
 var base64 = require('./base64');
 
 exports = module.exports = function (forge) {
@@ -29053,7 +29124,7 @@ exports = module.exports = function (forge) {
   };
 };
 
-},{"./base64":11}],11:[function(require,module,exports){
+},{"./base64":12}],12:[function(require,module,exports){
 var Buffer=require("__browserify_Buffer").Buffer;exports = module.exports = {
   encode: function (string) {
     return new Buffer(string).toString('base64');
@@ -29064,7 +29135,7 @@ var Buffer=require("__browserify_Buffer").Buffer;exports = module.exports = {
   }
 };
 
-},{"__browserify_Buffer":13}],12:[function(require,module,exports){
+},{"__browserify_Buffer":14}],13:[function(require,module,exports){
 var base64 = require('./base64');
 
 exports = module.exports = function (forge) {
@@ -29141,7 +29212,7 @@ exports = module.exports = function (forge) {
   };
 };
 
-},{"./base64":11}],13:[function(require,module,exports){
+},{"./base64":12}],14:[function(require,module,exports){
 require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 exports.readIEEE754 = function(buffer, offset, isBE, mLen, nBytes) {
   var e, m,
@@ -31521,7 +31592,7 @@ function hasOwnProperty(obj, prop) {
 },{"_shims":5}]},{},[])
 ;;module.exports=require("buffer-browserify")
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 /**
  * Node.js module for Forge.
  *
@@ -31615,5 +31686,5 @@ define([
 });
 })();
 
-},{}]},{},[7])
+},{}]},{},[8])
 ;
