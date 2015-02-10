@@ -17,6 +17,7 @@ describe('Relationship', function () {
   var individual, organisation, relationship;
 
   before(function (done) {
+    this.timeout(5e3);
     Slide.Actor.create({
       success: function (ind) {
         Slide.Actor.create({
