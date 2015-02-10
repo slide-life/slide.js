@@ -11,13 +11,13 @@ var NGROK_RECEIVER_PORT = 9293;
 var SMS_TEST_NUMBER = 18575762052;
 
 describe('User', function () {
-  var user;
+  var user, organisation;
 
-  var test_verification = (function() {
+  var testVerification = (function() {
     var done = false, success, _cb;
 
     // Start a server which twilio will use as a post-message hook
-    var verify_server = http.createServer(function (request, response) {
+    var verifyServer = http.createServer(function (request, response) {
       var data = url.parse(request.url, true).query;
       var pin = data.match(/(\S+)\./)[1];
 
@@ -31,7 +31,7 @@ describe('User', function () {
     }).listen(NGROK_RECEIVER_PORT);
 
     // Wrap response validation to prevent race conditions
-    var test_verification = function (cb) {
+    var testVerification = function (cb) {
       if (done) {
         cb(success);
       } else {
@@ -39,7 +39,7 @@ describe('User', function () {
       }
     };
 
-    return test_verification;
+    return testVerification;
   }());
 
   before(function (done) {
@@ -51,7 +51,12 @@ describe('User', function () {
       Slide.User.create({ value: SMS_TEST_NUMBER, type: 'phone' }, 'test_password_123', {
         success: function (u) {
           user = u;
-          done();
+          Slide.Actor.create({
+            success: function (org) {
+              organisation = org;
+              done();
+            }
+          });
         }
       });
     });
@@ -60,8 +65,7 @@ describe('User', function () {
 
   describe('.verifyIdentifier()', function () {
     it('should verify the identifier that the user has signed up wih', function (done) {
-      this.timeout(5e3);
-      test_verification(function(success) {
+      testVerification(function(success) {
         assert.isTrue(success);
         done();
       });
@@ -104,6 +108,29 @@ describe('User', function () {
           done();
         }
       })
+    });
+  });
+
+  describe('.getRelationships()', function () {
+    it('should get relationships', function (done) {
+      organisation.createRelationship(user, {
+        success: function (rel) {
+          var createdId = rel.id;
+          user.getRelationships({
+            success: function(relationships) {
+              assert.equal(relationships.filter(function(rel) {
+                return rel.id == createdId;
+              }).length, 1);
+              // TODO: check for equivalence of more than just id between
+              // created and fetched relationships.
+              done();
+            },
+            failure: function() {
+              console.log('failed');
+            }
+          })
+        }
+      });
     });
   });
 
