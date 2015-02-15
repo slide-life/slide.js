@@ -28540,6 +28540,16 @@ function Actor () {
 
 /* Static methods */
 
+Actor.properties = ['profile', 'keys', 'relationships'];
+
+Actor.fromObject = function(obj) {
+  var actor = new this();
+  this.properties.forEach(function(prop) {
+    actor[prop] = obj[prop];
+  });
+  return actor;
+};
+
 Actor.create = function (cbs) {
   var actor  = new Actor();
   API.post('/actors', {
@@ -29219,6 +29229,9 @@ function User (identifier) {
 }
 
 User.prototype = Object.create(Actor.prototype);
+
+User.properties = Actor.properties.concat(['identifiers']);
+User.fromObject = Actor.fromObject;
 
 User.create = function (identifier /* { identifier, type } */, password, cbs) {
   var user  = new User(identifier);
