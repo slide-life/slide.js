@@ -28689,7 +28689,240 @@ Actor.prototype.addWebhook = function (scope, url, method, cbs) {
 
 exports = module.exports = Actor;
 
-},{"../utils/api":10,"../utils/crypto":14,"./listener":4,"./message":5,"./relationship":6}],2:[function(require,module,exports){
+},{"../utils/api":11,"../utils/crypto":15,"./listener":5,"./message":6,"./relationship":7}],2:[function(require,module,exports){
+var API = require('../utils/api');
+var extend = require('util')._extend;
+var Q = require('q');
+
+var DEFAULT_ORGANIZATION = 'slide.life';
+
+function Card (vendorId) {
+  this.vendorId = vendorId;
+}
+
+Card.CACHED_CARDS = {};
+
+Card.fromObject = function (obj) {
+  var card = new Card(obj.vendor_id);
+  card.schema = obj.schema;
+  return card;
+};
+
+Card.get = function (vendorDomain, cbs) {
+  if (Card.CACHED_CARDS[vendorDomain]) {
+    cbs.success(Card.CACHED_CARDS[vendorDomain]);
+  } else {
+    require('./vendor').getByDomain(vendorDomain, {
+      success: function (vendor) {
+        Card.CACHED_CARDS[vendorDomain] = vendor.card;
+        cbs.success(Card.CACHED_CARDS[vendorDomain]);
+      },
+      failure: cbs.failure
+    });
+  }
+};
+
+Card._inherits = function (fieldSchema) {
+  if ('_inherits' in fieldSchema) {
+    return [fieldSchema._inherits];
+  } else {
+    return [];
+  }
+};
+
+Card._components = function (fieldSchema) {
+  if ('_components' in fieldSchema) {
+    return fieldSchema._components;
+  } else {
+    return [];
+  }
+};
+
+Card._pathOf = function (fieldName) {
+  if (fieldName.indexOf(':') > -1) {
+    return fieldName.split(':')[1];
+  } else {
+    return fieldName;
+  }
+};
+
+Card._separatePath = function (pathString) {
+  return pathString.split('.');
+};
+
+Card._componentName = function (fieldName) {
+  return Card._separatePath(Card._pathOf(fieldName)).pop();
+};
+
+Card._isRoot = function (inheritance) {
+  return inheritance[inheritance.length - 1] === ':';
+};
+
+Card._resolveForField = function (field, cb) {
+  Card._resolve(Card.getPathForField(field), cb);
+};
+
+Card._resolve = function (path, cb) {
+  Card.get(path.organization, {
+    failure: function(err) {
+      console.log('err', err);
+    },
+    success: function (card) {
+      var hierarchy = path.hierarchy;
+      var remainingPath = hierarchy.slice(0);
+      var fieldSchema = card.schema;
+
+      while (remainingPath[0] in fieldSchema) {
+        fieldSchema = fieldSchema[remainingPath[0]];
+        remainingPath = remainingPath.slice(1);
+      }
+
+      if (remainingPath.length === 0) {
+        cb(hierarchy, card);
+      } else {
+        var nexts = Card._inherits(fieldSchema).concat(Card._components(fieldSchema));
+        Card._inherits(fieldSchema).forEach(function (inheritance) {
+          var inheritanceField;
+          if (Card._isRoot(inheritance)) {
+            inheritanceField = inheritance + remainingPath.join('.');
+          } else {
+            inheritanceField = [inheritance].concat(remainingPath).join('.');
+          }
+
+          Card._resolveForField(inheritanceField, cb);
+        });
+
+        Card._components(fieldSchema).filter(function (component) {
+          return Card._componentName(component) === remainingPath[0];
+        }).forEach(function (component) {
+          var inheritanceField =
+            [component].concat(remainingPath.slice(1)).join('.');
+          Card._resolveForField(inheritanceField, cb);
+        });
+      }
+    }
+  });
+};
+
+Card._resolveFieldSchema = function (path, cb) {
+  Card._resolve(path, function (resultHierarchy, resultCard) {
+    cb(resultHierarchy.reduce(function (obj, key) { return obj[key]; },
+                              resultCard.schema));
+  });
+};
+
+Card._retrieveField = function (path, cb) {
+  Card._resolveFieldSchema(path, function (fieldSchema) {
+    var deferreds = [];
+
+    if (fieldSchema._components) {
+      fieldSchema._components.map(Card.getPathForField).forEach(function (componentPath) {
+        var deferred = Q.defer();
+        deferreds.push(deferred);
+
+        Card._retrieveField(componentPath, function (f) {
+          fieldSchema[componentPath.hierarchy.pop()] = f;
+          deferred.resolve();
+        });
+      });
+    }
+
+    if (fieldSchema._inherits) {
+      var inheritPath = Card.getPathForField(fieldSchema._inherits);
+
+      var deferred = Q.defer();
+      deferreds.push(deferred);
+
+      Card._retrieveField(inheritPath, function (f) {
+        fieldSchema = extend(extend({}, f), fieldSchema);
+        deferred.resolve();
+      });
+    }
+
+    Q.all(deferreds).done(function () {
+      delete fieldSchema._components;
+      delete fieldSchema._inherits;
+      cb(fieldSchema);
+    });
+  });
+};
+
+Card.getPathForField = function (field) {
+  field = (field.indexOf(':') < 0) ? DEFAULT_ORGANIZATION + ':' + field : field;
+  var deconstructed = field.split(':');
+  return {
+    organization: deconstructed[0],
+    hierarchy: deconstructed[1].split('.'),
+    field: field
+  };
+};
+
+Card.deconstructField = function (fieldSchema) {
+  var children = {},
+  annotations = {};
+
+  for (var key in fieldSchema) {
+    if (fieldSchema.hasOwnProperty(key)) {
+      if (key[0] === '_') {
+        annotations[key] = fieldSchema[key];
+      } else {
+        children[key] = fieldSchema[key];
+      }
+    }
+  }
+
+  return { children: children, annotations: annotations };
+};
+
+Card.getChildren = function (fieldSchema) {
+  return Card.deconstructField(fieldSchema).children;
+};
+
+Card.getAnnotations = function (fieldSchema) {
+  return Card.deconstructField(fieldSchema).annotations;
+};
+
+Card.flattenField = function (field, fieldSchema) {
+  var children = Card.getChildren(fieldSchema);
+  if (Object.keys(children).length > 0) {
+    return Object.keys(children).reduce(function (merged, id) {
+      return $.extend(merged, Card.flattenField(field + '.' + id, fieldSchema[id]));
+    }, {});
+  } else {
+    var leaf = {};
+    leaf[field] = fieldSchema;
+    return leaf;
+  }
+};
+
+Card.getFlattenedSchemasForFields = function (fields, cb) {
+  Card.getSchemasForFields(fields, function (unflattenedSchemas) {
+    var fields = {};
+    $.each(unflattenedSchemas, function (field, fieldSchema) {
+      $.extend(fields, Card.flattenField(field, fieldSchema));
+    });
+    cb(fields);
+  });
+};
+
+Card.getSchemasForFields = function (fields, cb) {
+  var schemas = {},
+    deferreds = [],
+    paths     = fields.map(Card.getPathForField);
+
+  paths.forEach(function (path) {
+    Card._retrieveField(path, function (fieldSchema) {
+      schemas[path.field] = fieldSchema;
+      if( Object.keys(schemas).length == paths.length ) {
+        cb(schemas);
+      }
+    });
+  });
+};
+
+exports = module.exports = Card;
+
+},{"../utils/api":11,"./vendor":9,"q":71,"util":37}],3:[function(require,module,exports){
 var API = require('../utils/api');
 var Crypto = require('../utils/crypto');
 
@@ -28787,7 +29020,7 @@ Conversation.prototype.deposit = function (to, data, cbs) {
 
 exports = module.exports = Conversation;
 
-},{"../utils/api":10,"../utils/crypto":14,"./message":5}],3:[function(require,module,exports){
+},{"../utils/api":11,"../utils/crypto":15,"./message":6}],4:[function(require,module,exports){
 var API = require('../utils/api');
 
 function Identifier () { }
@@ -28831,7 +29064,7 @@ Identifier.fromObject = function (obj) {
 
 exports = module.exports = Identifier;
 
-},{"../utils/api":10}],4:[function(require,module,exports){
+},{"../utils/api":11}],5:[function(require,module,exports){
 function Listener () { }
 
 Listener.buildWebhook = function (scope, url, method) {
@@ -28846,7 +29079,7 @@ Listener.buildWebhook = function (scope, url, method) {
 
 exports = module.exports = Listener;
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 function Message () { }
 
 function Request () { }
@@ -28883,7 +29116,7 @@ Message.fromObject = function (obj) {
 
 exports = module.exports = Message;
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 var API = require('../utils/api');
 var Crypto = require('../utils/crypto');
 
@@ -28973,7 +29206,7 @@ Relationship.prototype.createConversation = function (name, cbs) {
 
 exports = module.exports = Relationship;
 
-},{"../utils/api":10,"../utils/crypto":14,"./conversation":2,"./message":5}],7:[function(require,module,exports){
+},{"../utils/api":11,"../utils/crypto":15,"./conversation":3,"./message":6}],8:[function(require,module,exports){
 var API = require('../utils/api');
 var Crypto = require('../utils/crypto');
 
@@ -28981,8 +29214,7 @@ var Actor = require('./actor');
 var Identifier = require('./identifier');
 
 function User (identifier) {
-  this.profile     = this._generateProfile();
-  this.keys        = this._generateKeys();
+  Actor.call(this);
   this.identifiers = [identifier];
 }
 
@@ -29044,11 +29276,12 @@ User.prototype.verifyIdentifier = function (identifier, verificationCode, cbs) {
 
 exports = module.exports = User;
 
-},{"../utils/api":10,"../utils/crypto":14,"./actor":1,"./identifier":3}],8:[function(require,module,exports){
+},{"../utils/api":11,"../utils/crypto":15,"./actor":1,"./identifier":4}],9:[function(require,module,exports){
 var API = require('../utils/api');
 var Crypto = require('../utils/crypto');
 
 var Actor = require('./actor');
+var Card = require('./card');
 
 function Vendor (id) {
   this.profile      = this._generateProfile();
@@ -29062,7 +29295,8 @@ Vendor.fromObject = function (obj) {
   var vendor = new Vendor(obj.id);
   vendor.keys = {};
   vendor.keys.public = obj.key;
-  vendor.card = Card.fromObject(obj.card);
+  vendor.card = Card.fromObject(obj);
+  return vendor;
 };
 
 Vendor.invite = function (name, domain, cbs) {
@@ -29107,13 +29341,15 @@ Vendor.getByDomain = function (domain, cbs) {
 
 exports = module.exports = Vendor;
 
-},{"../utils/api":10,"../utils/crypto":14,"./actor":1}],9:[function(require,module,exports){
+
+},{"../utils/api":11,"../utils/crypto":15,"./actor":1,"./card":2}],10:[function(require,module,exports){
 var Slide = {
   Actor: require('./models/actor'),
   User: require('./models/user'),
   Vendor: require('./models/vendor'),
   Identifier: require('./models/identifier'),
-  Relationship: require('./models/relationship')
+  Relationship: require('./models/relationship'),
+  Card: require('./models/card')
 };
 
 exports = module.exports = Slide;
@@ -29122,7 +29358,7 @@ if( env.TARGET == 'browser' ) {
 }
 
 
-},{"./models/actor":1,"./models/identifier":3,"./models/relationship":6,"./models/user":7,"./models/vendor":8}],10:[function(require,module,exports){
+},{"./models/actor":1,"./models/card":2,"./models/identifier":4,"./models/relationship":7,"./models/user":8,"./models/vendor":9}],11:[function(require,module,exports){
 var API;
 if( typeof module === 'undefined' ) {
   API = require('./api/browser.js');
@@ -29132,7 +29368,7 @@ if( typeof module === 'undefined' ) {
 
 exports = module.exports = new API();
 
-},{"./api/browser.js":12,"./api/node.js":13}],11:[function(require,module,exports){
+},{"./api/browser.js":13,"./api/node.js":14}],12:[function(require,module,exports){
 function API () {}
 
 HOST = env.HOST;
@@ -29149,7 +29385,7 @@ API.prototype = {
   _escapeQueryString: function (qs) {
     if (qs) {
       for (var k in qs) {
-        qs[k] = qs[k].replace(/=/g, '*');
+        qs[k] = (qs[k] || '').replace(/=/g, '*');
       }
     }
   }
@@ -29157,7 +29393,7 @@ API.prototype = {
 
 exports = module.exports = API;
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 var API = require('./api');
 
 function BrowserAPI () {}
@@ -29205,7 +29441,7 @@ BrowserAPI.prototype.socket = function (path) {
 
 exports = module.exports = BrowserAPI;
 
-},{"./api":11}],13:[function(require,module,exports){
+},{"./api":12}],14:[function(require,module,exports){
 var API = require('./api');
 
 var ws = require('ws');
@@ -29290,7 +29526,7 @@ NodeAPI.prototype.socket = function (path) {
 
 exports = module.exports = NodeAPI;
 
-},{"./api":11,"request":70,"ws":128}],14:[function(require,module,exports){
+},{"./api":12,"request":72,"ws":130}],15:[function(require,module,exports){
 if( env.TARGET == 'node' ) {
   forge = require('node-forge');
 }
@@ -29300,7 +29536,7 @@ exports = module.exports = {
   AES: require('./crypto/aes')(forge)
 };
 
-},{"./crypto/aes":15,"./crypto/rsa":17,"node-forge":69}],15:[function(require,module,exports){
+},{"./crypto/aes":16,"./crypto/rsa":18,"node-forge":70}],16:[function(require,module,exports){
 var base64 = require('./base64');
 
 exports = module.exports = function (forge) {
@@ -29372,7 +29608,7 @@ exports = module.exports = function (forge) {
   };
 };
 
-},{"./base64":16}],16:[function(require,module,exports){
+},{"./base64":17}],17:[function(require,module,exports){
 var Buffer=require("__browserify_Buffer").Buffer;exports = module.exports = {
   encode: function (string) {
     return new Buffer(string).toString('base64');
@@ -29383,7 +29619,7 @@ var Buffer=require("__browserify_Buffer").Buffer;exports = module.exports = {
   }
 };
 
-},{"__browserify_Buffer":67}],17:[function(require,module,exports){
+},{"__browserify_Buffer":68}],18:[function(require,module,exports){
 var base64 = require('./base64');
 
 exports = module.exports = function (forge) {
@@ -29460,7 +29696,7 @@ exports = module.exports = function (forge) {
   };
 };
 
-},{"./base64":16}],18:[function(require,module,exports){
+},{"./base64":17}],19:[function(require,module,exports){
 
 
 //
@@ -29678,7 +29914,7 @@ if (typeof Object.getOwnPropertyDescriptor === 'function') {
   exports.getOwnPropertyDescriptor = valueObject;
 }
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -29751,7 +29987,7 @@ function onend() {
   timers.setImmediate(shims.bind(this.end, this));
 }
 
-},{"_shims":18,"_stream_readable":21,"_stream_writable":23,"timers":33,"util":36}],20:[function(require,module,exports){
+},{"_shims":19,"_stream_readable":22,"_stream_writable":24,"timers":34,"util":37}],21:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -29794,7 +30030,7 @@ PassThrough.prototype._transform = function(chunk, encoding, cb) {
   cb(null, chunk);
 };
 
-},{"_stream_transform":22,"util":36}],21:[function(require,module,exports){
+},{"_stream_transform":23,"util":37}],22:[function(require,module,exports){
 var process=require("__browserify_process");// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -30715,7 +30951,7 @@ function endReadable(stream) {
   }
 }
 
-},{"__browserify_process":68,"_shims":18,"buffer":38,"events":25,"stream":31,"string_decoder":32,"timers":33,"util":36}],22:[function(require,module,exports){
+},{"__browserify_process":69,"_shims":19,"buffer":39,"events":26,"stream":32,"string_decoder":33,"timers":34,"util":37}],23:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -30921,7 +31157,7 @@ function done(stream, er) {
   return stream.push(null);
 }
 
-},{"_stream_duplex":19,"util":36}],23:[function(require,module,exports){
+},{"_stream_duplex":20,"util":37}],24:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -31291,7 +31527,7 @@ function endWritable(stream, state, cb) {
   state.ended = true;
 }
 
-},{"buffer":38,"stream":31,"timers":33,"util":36}],24:[function(require,module,exports){
+},{"buffer":39,"stream":32,"timers":34,"util":37}],25:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -31608,7 +31844,7 @@ assert.doesNotThrow = function(block, /*optional*/message) {
 };
 
 assert.ifError = function(err) { if (err) {throw err;}};
-},{"_shims":18,"util":36}],25:[function(require,module,exports){
+},{"_shims":19,"util":37}],26:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -31889,13 +32125,13 @@ EventEmitter.listenerCount = function(emitter, type) {
     ret = emitter._events[type].length;
   return ret;
 };
-},{"util":36}],26:[function(require,module,exports){
+},{"util":37}],27:[function(require,module,exports){
 
 // not implemented
 // The reason for having an empty file and not throwing is to allow
 // untraditional implementation of this module.
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 var http = require('http');
 
 var https = module.exports;
@@ -31909,9 +32145,9 @@ https.request = function (params, cb) {
     params.scheme = 'https';
     return http.request.call(this, params, cb);
 }
-},{"http":46}],28:[function(require,module,exports){
-module.exports=require(26)
-},{}],29:[function(require,module,exports){
+},{"http":47}],29:[function(require,module,exports){
+module.exports=require(27)
+},{}],30:[function(require,module,exports){
 var process=require("__browserify_process");// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -32122,7 +32358,7 @@ exports.extname = function(path) {
   return splitPath(path)[3];
 };
 
-},{"__browserify_process":68,"_shims":18,"util":36}],30:[function(require,module,exports){
+},{"__browserify_process":69,"_shims":19,"util":37}],31:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -32333,7 +32569,7 @@ QueryString.parse = QueryString.decode = function(qs, sep, eq, options) {
 
   return obj;
 };
-},{"_shims":18,"buffer":38,"util":36}],31:[function(require,module,exports){
+},{"_shims":19,"buffer":39,"util":37}],32:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -32462,7 +32698,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"_stream_duplex":19,"_stream_passthrough":20,"_stream_readable":21,"_stream_transform":22,"_stream_writable":23,"events":25,"util":36}],32:[function(require,module,exports){
+},{"_stream_duplex":20,"_stream_passthrough":21,"_stream_readable":22,"_stream_transform":23,"_stream_writable":24,"events":26,"util":37}],33:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -32655,7 +32891,7 @@ function base64DetectIncompleteChar(buffer) {
   return incomplete;
 }
 
-},{"buffer":38}],33:[function(require,module,exports){
+},{"buffer":39}],34:[function(require,module,exports){
 try {
     // Old IE browsers that do not curry arguments
     if (!setTimeout.call) {
@@ -32774,9 +33010,9 @@ if (!exports.setImmediate) {
   };
 }
 
-},{}],34:[function(require,module,exports){
-module.exports=require(26)
 },{}],35:[function(require,module,exports){
+module.exports=require(27)
+},{}],36:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -33471,7 +33707,7 @@ Url.prototype.parseHost = function() {
   }
   if (host) this.hostname = host;
 };
-},{"_shims":18,"querystring":30,"util":36}],36:[function(require,module,exports){
+},{"_shims":19,"querystring":31,"util":37}],37:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -34016,7 +34252,7 @@ function hasOwnProperty(obj, prop) {
   return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-},{"_shims":18}],37:[function(require,module,exports){
+},{"_shims":19}],38:[function(require,module,exports){
 exports.readIEEE754 = function(buffer, offset, isBE, mLen, nBytes) {
   var e, m,
       eLen = nBytes * 8 - mLen - 1,
@@ -34102,7 +34338,7 @@ exports.writeIEEE754 = function(buffer, value, offset, isBE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128;
 };
 
-},{}],38:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 var assert;
 exports.Buffer = Buffer;
 exports.SlowBuffer = Buffer;
@@ -35228,7 +35464,7 @@ Buffer.prototype.writeDoubleBE = function(value, offset, noAssert) {
   writeDouble(this, value, offset, true, noAssert);
 };
 
-},{"./buffer_ieee754":37,"assert":24,"base64-js":39}],39:[function(require,module,exports){
+},{"./buffer_ieee754":38,"assert":25,"base64-js":40}],40:[function(require,module,exports){
 (function (exports) {
 	'use strict';
 
@@ -35314,7 +35550,7 @@ Buffer.prototype.writeDoubleBE = function(value, offset, noAssert) {
 	module.exports.fromByteArray = uint8ToBase64;
 }());
 
-},{}],40:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 var Buffer = require('buffer').Buffer;
 var intSize = 4;
 var zeroBuffer = new Buffer(intSize); zeroBuffer.fill(0);
@@ -35351,7 +35587,7 @@ function hash(buf, fn, hashSize, bigEndian) {
 
 module.exports = { hash: hash };
 
-},{"buffer":38}],41:[function(require,module,exports){
+},{"buffer":39}],42:[function(require,module,exports){
 var Buffer = require('buffer').Buffer
 var sha = require('./sha')
 var sha256 = require('./sha256')
@@ -35450,7 +35686,7 @@ each(['createCredentials'
   }
 })
 
-},{"./md5":42,"./rng":43,"./sha":44,"./sha256":45,"buffer":38}],42:[function(require,module,exports){
+},{"./md5":43,"./rng":44,"./sha":45,"./sha256":46,"buffer":39}],43:[function(require,module,exports){
 /*
  * A JavaScript implementation of the RSA Data Security, Inc. MD5 Message
  * Digest Algorithm, as defined in RFC 1321.
@@ -35615,7 +35851,7 @@ module.exports = function md5(buf) {
   return helpers.hash(buf, core_md5, 16);
 };
 
-},{"./helpers":40}],43:[function(require,module,exports){
+},{"./helpers":41}],44:[function(require,module,exports){
 // Original code adapted from Robert Kieffer.
 // details at https://github.com/broofa/node-uuid
 (function() {
@@ -35648,7 +35884,7 @@ module.exports = function md5(buf) {
 
 }())
 
-},{}],44:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 /*
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-1, as defined
  * in FIPS PUB 180-1
@@ -35751,7 +35987,7 @@ module.exports = function sha1(buf) {
   return helpers.hash(buf, core_sha1, 20, true);
 };
 
-},{"./helpers":40}],45:[function(require,module,exports){
+},{"./helpers":41}],46:[function(require,module,exports){
 
 /**
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-256, as defined
@@ -35832,7 +36068,7 @@ module.exports = function sha256(buf) {
   return helpers.hash(buf, core_sha256, 32, true);
 };
 
-},{"./helpers":40}],46:[function(require,module,exports){
+},{"./helpers":41}],47:[function(require,module,exports){
 var http = module.exports;
 var EventEmitter = require('events').EventEmitter;
 var Request = require('./lib/request');
@@ -35897,7 +36133,7 @@ var xhrHttp = (function () {
     }
 })();
 
-},{"./lib/request":47,"events":25}],47:[function(require,module,exports){
+},{"./lib/request":48,"events":26}],48:[function(require,module,exports){
 var Stream = require('stream');
 var Response = require('./response');
 var concatStream = require('concat-stream');
@@ -36031,7 +36267,7 @@ var indexOf = function (xs, x) {
     return -1;
 };
 
-},{"./response":48,"Base64":49,"concat-stream":53,"stream":31,"util":36}],48:[function(require,module,exports){
+},{"./response":49,"Base64":50,"concat-stream":54,"stream":32,"util":37}],49:[function(require,module,exports){
 var Stream = require('stream');
 var util = require('util');
 
@@ -36153,7 +36389,7 @@ var isArray = Array.isArray || function (xs) {
     return Object.prototype.toString.call(xs) === '[object Array]';
 };
 
-},{"stream":31,"util":36}],49:[function(require,module,exports){
+},{"stream":32,"util":37}],50:[function(require,module,exports){
 ;(function () {
 
   var
@@ -36210,7 +36446,7 @@ var isArray = Array.isArray || function (xs) {
 
 }());
 
-},{}],50:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};/*! http://mths.be/punycode v1.2.4 by @mathias */
 ;(function(root) {
 
@@ -36719,7 +36955,7 @@ var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? 
 
 }(this));
 
-},{}],51:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 var Buffer=require("__browserify_Buffer").Buffer;var Zlib = module.exports = require('./zlib');
 
 // the least I can do is make error messages for the rest of the node.js/zlib api.
@@ -36764,7 +37000,7 @@ Zlib.gzip = function gzip(stringOrBuffer, callback) {
   return _gzip(Buffer(stringOrBuffer), callback);
 };
 
-},{"./zlib":52,"__browserify_Buffer":67}],52:[function(require,module,exports){
+},{"./zlib":53,"__browserify_Buffer":68}],53:[function(require,module,exports){
 var process=require("__browserify_process"),Buffer=require("__browserify_Buffer").Buffer;/** @license zlib.js 0.1.7 2012 - imaya [ https://github.com/imaya/zlib.js ] The MIT License */(function() {'use strict';function q(b){throw b;}var t=void 0,u=!0;var A="undefined"!==typeof Uint8Array&&"undefined"!==typeof Uint16Array&&"undefined"!==typeof Uint32Array;function E(b,a){this.index="number"===typeof a?a:0;this.m=0;this.buffer=b instanceof(A?Uint8Array:Array)?b:new (A?Uint8Array:Array)(32768);2*this.buffer.length<=this.index&&q(Error("invalid index"));this.buffer.length<=this.index&&this.f()}E.prototype.f=function(){var b=this.buffer,a,c=b.length,d=new (A?Uint8Array:Array)(c<<1);if(A)d.set(b);else for(a=0;a<c;++a)d[a]=b[a];return this.buffer=d};
 E.prototype.d=function(b,a,c){var d=this.buffer,f=this.index,e=this.m,g=d[f],k;c&&1<a&&(b=8<a?(G[b&255]<<24|G[b>>>8&255]<<16|G[b>>>16&255]<<8|G[b>>>24&255])>>32-a:G[b]>>8-a);if(8>a+e)g=g<<a|b,e+=a;else for(k=0;k<a;++k)g=g<<1|b>>a-k-1&1,8===++e&&(e=0,d[f++]=G[g],g=0,f===d.length&&(d=this.f()));d[f]=g;this.buffer=d;this.m=e;this.index=f};E.prototype.finish=function(){var b=this.buffer,a=this.index,c;0<this.m&&(b[a]<<=8-this.m,b[a]=G[b[a]],a++);A?c=b.subarray(0,a):(b.length=a,c=b);return c};
 var aa=new (A?Uint8Array:Array)(256),J;for(J=0;256>J;++J){for(var N=J,Q=N,ba=7,N=N>>>1;N;N>>>=1)Q<<=1,Q|=N&1,--ba;aa[J]=(Q<<ba&255)>>>0}var G=aa;function R(b,a,c){var d,f="number"===typeof a?a:a=0,e="number"===typeof c?c:b.length;d=-1;for(f=e&7;f--;++a)d=d>>>8^S[(d^b[a])&255];for(f=e>>3;f--;a+=8)d=d>>>8^S[(d^b[a])&255],d=d>>>8^S[(d^b[a+1])&255],d=d>>>8^S[(d^b[a+2])&255],d=d>>>8^S[(d^b[a+3])&255],d=d>>>8^S[(d^b[a+4])&255],d=d>>>8^S[(d^b[a+5])&255],d=d>>>8^S[(d^b[a+6])&255],d=d>>>8^S[(d^b[a+7])&255];return(d^4294967295)>>>0}
@@ -36820,7 +37056,7 @@ k+4&&(this.a=new Uint8Array(g.length+4),this.a.set(g),g=this.a),g=g.subarray(0,k
 function xb(b,a){var c;b.subarray=b.slice;c=(new pb(b)).i();a||(a={});return a.noBuffer?c:Cb(c)}function yb(b,a,c){process.nextTick(function(){var d,f;try{f=zb(b,c)}catch(e){d=e}a(d,f)})}function zb(b,a){var c;b.subarray=b.slice;c=(new Aa(b)).h();a||(a={});return a.H?c:Cb(c)}function Ab(b,a,c){process.nextTick(function(){var d,f;try{f=Bb(b,c)}catch(e){d=e}a(d,f)})}function Bb(b,a){var c;b.subarray=b.slice;c=(new nb(b)).i();a||(a={});return a.H?c:Cb(c)}
 function Cb(b){var a=new Buffer(b.length),c,d;c=0;for(d=b.length;c<d;++c)a[c]=b[c];return a};}).call(this); //@ sourceMappingURL=node-zlib.js.map
 
-},{"__browserify_Buffer":67,"__browserify_process":68}],53:[function(require,module,exports){
+},{"__browserify_Buffer":68,"__browserify_process":69}],54:[function(require,module,exports){
 var stream = require('stream')
 var bops = require('bops')
 var util = require('util')
@@ -36871,7 +37107,7 @@ module.exports = function(cb) {
 
 module.exports.ConcatStream = ConcatStream
 
-},{"bops":54,"stream":31,"util":36}],54:[function(require,module,exports){
+},{"bops":55,"stream":32,"util":37}],55:[function(require,module,exports){
 var proto = {}
 module.exports = proto
 
@@ -36892,9 +37128,9 @@ function mix(from, into) {
   }
 }
 
-},{"./copy.js":57,"./create.js":58,"./from.js":59,"./is.js":60,"./join.js":61,"./read.js":63,"./subarray.js":64,"./to.js":65,"./write.js":66}],55:[function(require,module,exports){
-module.exports=require(39)
-},{}],56:[function(require,module,exports){
+},{"./copy.js":58,"./create.js":59,"./from.js":60,"./is.js":61,"./join.js":62,"./read.js":64,"./subarray.js":65,"./to.js":66,"./write.js":67}],56:[function(require,module,exports){
+module.exports=require(40)
+},{}],57:[function(require,module,exports){
 module.exports = to_utf8
 
 var out = []
@@ -36969,7 +37205,7 @@ function reduced(list) {
   return out
 }
 
-},{}],57:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
 module.exports = copy
 
 var slice = [].slice
@@ -37023,12 +37259,12 @@ function slow_copy(from, to, j, i, jend) {
   }
 }
 
-},{}],58:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 module.exports = function(size) {
   return new Uint8Array(size)
 }
 
-},{}],59:[function(require,module,exports){
+},{}],60:[function(require,module,exports){
 module.exports = from
 
 var base64 = require('base64-js')
@@ -37088,13 +37324,13 @@ function from_base64(str) {
   return new Uint8Array(base64.toByteArray(str)) 
 }
 
-},{"base64-js":55}],60:[function(require,module,exports){
+},{"base64-js":56}],61:[function(require,module,exports){
 
 module.exports = function(buffer) {
   return buffer instanceof Uint8Array;
 }
 
-},{}],61:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
 module.exports = join
 
 function join(targets, hint) {
@@ -37132,7 +37368,7 @@ function get_length(targets) {
   return size
 }
 
-},{}],62:[function(require,module,exports){
+},{}],63:[function(require,module,exports){
 var proto
   , map
 
@@ -37154,7 +37390,7 @@ function get(target) {
   return out
 }
 
-},{}],63:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 module.exports = {
     readUInt8:      read_uint8
   , readInt8:       read_int8
@@ -37243,14 +37479,14 @@ function read_double_be(target, at) {
   return dv.getFloat64(at + target.byteOffset, false)
 }
 
-},{"./mapped.js":62}],64:[function(require,module,exports){
+},{"./mapped.js":63}],65:[function(require,module,exports){
 module.exports = subarray
 
 function subarray(buf, from, to) {
   return buf.subarray(from || 0, to || buf.length)
 }
 
-},{}],65:[function(require,module,exports){
+},{}],66:[function(require,module,exports){
 module.exports = to
 
 var base64 = require('base64-js')
@@ -37288,7 +37524,7 @@ function to_base64(buf) {
 }
 
 
-},{"base64-js":55,"to-utf8":56}],66:[function(require,module,exports){
+},{"base64-js":56,"to-utf8":57}],67:[function(require,module,exports){
 module.exports = {
     writeUInt8:      write_uint8
   , writeInt8:       write_int8
@@ -37376,7 +37612,7 @@ function write_double_be(target, value, at) {
   return dv.setFloat64(at + target.byteOffset, value, false)
 }
 
-},{"./mapped.js":62}],67:[function(require,module,exports){
+},{"./mapped.js":63}],68:[function(require,module,exports){
 require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 exports.readIEEE754 = function(buffer, offset, isBE, mLen, nBytes) {
   var e, m,
@@ -39756,7 +39992,7 @@ function hasOwnProperty(obj, prop) {
 },{"_shims":5}]},{},[])
 ;;module.exports=require("buffer-browserify")
 
-},{}],68:[function(require,module,exports){
+},{}],69:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -39811,7 +40047,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],69:[function(require,module,exports){
+},{}],70:[function(require,module,exports){
 /**
  * Node.js module for Forge.
  *
@@ -39905,7 +40141,1946 @@ define([
 });
 })();
 
-},{}],70:[function(require,module,exports){
+},{}],71:[function(require,module,exports){
+var process=require("__browserify_process");// vim:ts=4:sts=4:sw=4:
+/*!
+ *
+ * Copyright 2009-2012 Kris Kowal under the terms of the MIT
+ * license found at http://github.com/kriskowal/q/raw/master/LICENSE
+ *
+ * With parts by Tyler Close
+ * Copyright 2007-2009 Tyler Close under the terms of the MIT X license found
+ * at http://www.opensource.org/licenses/mit-license.html
+ * Forked at ref_send.js version: 2009-05-11
+ *
+ * With parts by Mark Miller
+ * Copyright (C) 2011 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
+(function (definition) {
+    "use strict";
+
+    // This file will function properly as a <script> tag, or a module
+    // using CommonJS and NodeJS or RequireJS module formats.  In
+    // Common/Node/RequireJS, the module exports the Q API and when
+    // executed as a simple <script>, it creates a Q global instead.
+
+    // Montage Require
+    if (typeof bootstrap === "function") {
+        bootstrap("promise", definition);
+
+    // CommonJS
+    } else if (typeof exports === "object" && typeof module === "object") {
+        module.exports = definition();
+
+    // RequireJS
+    } else if (typeof define === "function" && define.amd) {
+        define(definition);
+
+    // SES (Secure EcmaScript)
+    } else if (typeof ses !== "undefined") {
+        if (!ses.ok()) {
+            return;
+        } else {
+            ses.makeQ = definition;
+        }
+
+    // <script>
+    } else if (typeof self !== "undefined") {
+        self.Q = definition();
+
+    } else {
+        throw new Error("This environment was not anticiapted by Q. Please file a bug.");
+    }
+
+})(function () {
+"use strict";
+
+var hasStacks = false;
+try {
+    throw new Error();
+} catch (e) {
+    hasStacks = !!e.stack;
+}
+
+// All code after this point will be filtered from stack traces reported
+// by Q.
+var qStartingLine = captureLine();
+var qFileName;
+
+// shims
+
+// used for fallback in "allResolved"
+var noop = function () {};
+
+// Use the fastest possible means to execute a task in a future turn
+// of the event loop.
+var nextTick =(function () {
+    // linked list of tasks (single, with head node)
+    var head = {task: void 0, next: null};
+    var tail = head;
+    var flushing = false;
+    var requestTick = void 0;
+    var isNodeJS = false;
+
+    function flush() {
+        /* jshint loopfunc: true */
+
+        while (head.next) {
+            head = head.next;
+            var task = head.task;
+            head.task = void 0;
+            var domain = head.domain;
+
+            if (domain) {
+                head.domain = void 0;
+                domain.enter();
+            }
+
+            try {
+                task();
+
+            } catch (e) {
+                if (isNodeJS) {
+                    // In node, uncaught exceptions are considered fatal errors.
+                    // Re-throw them synchronously to interrupt flushing!
+
+                    // Ensure continuation if the uncaught exception is suppressed
+                    // listening "uncaughtException" events (as domains does).
+                    // Continue in next event to avoid tick recursion.
+                    if (domain) {
+                        domain.exit();
+                    }
+                    setTimeout(flush, 0);
+                    if (domain) {
+                        domain.enter();
+                    }
+
+                    throw e;
+
+                } else {
+                    // In browsers, uncaught exceptions are not fatal.
+                    // Re-throw them asynchronously to avoid slow-downs.
+                    setTimeout(function() {
+                       throw e;
+                    }, 0);
+                }
+            }
+
+            if (domain) {
+                domain.exit();
+            }
+        }
+
+        flushing = false;
+    }
+
+    nextTick = function (task) {
+        tail = tail.next = {
+            task: task,
+            domain: isNodeJS && process.domain,
+            next: null
+        };
+
+        if (!flushing) {
+            flushing = true;
+            requestTick();
+        }
+    };
+
+    if (typeof process !== "undefined" && process.nextTick) {
+        // Node.js before 0.9. Note that some fake-Node environments, like the
+        // Mocha test runner, introduce a `process` global without a `nextTick`.
+        isNodeJS = true;
+
+        requestTick = function () {
+            process.nextTick(flush);
+        };
+
+    } else if (typeof setImmediate === "function") {
+        // In IE10, Node.js 0.9+, or https://github.com/NobleJS/setImmediate
+        if (typeof window !== "undefined") {
+            requestTick = setImmediate.bind(window, flush);
+        } else {
+            requestTick = function () {
+                setImmediate(flush);
+            };
+        }
+
+    } else if (typeof MessageChannel !== "undefined") {
+        // modern browsers
+        // http://www.nonblocking.io/2011/06/windownexttick.html
+        var channel = new MessageChannel();
+        // At least Safari Version 6.0.5 (8536.30.1) intermittently cannot create
+        // working message ports the first time a page loads.
+        channel.port1.onmessage = function () {
+            requestTick = requestPortTick;
+            channel.port1.onmessage = flush;
+            flush();
+        };
+        var requestPortTick = function () {
+            // Opera requires us to provide a message payload, regardless of
+            // whether we use it.
+            channel.port2.postMessage(0);
+        };
+        requestTick = function () {
+            setTimeout(flush, 0);
+            requestPortTick();
+        };
+
+    } else {
+        // old browsers
+        requestTick = function () {
+            setTimeout(flush, 0);
+        };
+    }
+
+    return nextTick;
+})();
+
+// Attempt to make generics safe in the face of downstream
+// modifications.
+// There is no situation where this is necessary.
+// If you need a security guarantee, these primordials need to be
+// deeply frozen anyway, and if you don’t need a security guarantee,
+// this is just plain paranoid.
+// However, this **might** have the nice side-effect of reducing the size of
+// the minified code by reducing x.call() to merely x()
+// See Mark Miller’s explanation of what this does.
+// http://wiki.ecmascript.org/doku.php?id=conventions:safe_meta_programming
+var call = Function.call;
+function uncurryThis(f) {
+    return function () {
+        return call.apply(f, arguments);
+    };
+}
+// This is equivalent, but slower:
+// uncurryThis = Function_bind.bind(Function_bind.call);
+// http://jsperf.com/uncurrythis
+
+var array_slice = uncurryThis(Array.prototype.slice);
+
+var array_reduce = uncurryThis(
+    Array.prototype.reduce || function (callback, basis) {
+        var index = 0,
+            length = this.length;
+        // concerning the initial value, if one is not provided
+        if (arguments.length === 1) {
+            // seek to the first value in the array, accounting
+            // for the possibility that is is a sparse array
+            do {
+                if (index in this) {
+                    basis = this[index++];
+                    break;
+                }
+                if (++index >= length) {
+                    throw new TypeError();
+                }
+            } while (1);
+        }
+        // reduce
+        for (; index < length; index++) {
+            // account for the possibility that the array is sparse
+            if (index in this) {
+                basis = callback(basis, this[index], index);
+            }
+        }
+        return basis;
+    }
+);
+
+var array_indexOf = uncurryThis(
+    Array.prototype.indexOf || function (value) {
+        // not a very good shim, but good enough for our one use of it
+        for (var i = 0; i < this.length; i++) {
+            if (this[i] === value) {
+                return i;
+            }
+        }
+        return -1;
+    }
+);
+
+var array_map = uncurryThis(
+    Array.prototype.map || function (callback, thisp) {
+        var self = this;
+        var collect = [];
+        array_reduce(self, function (undefined, value, index) {
+            collect.push(callback.call(thisp, value, index, self));
+        }, void 0);
+        return collect;
+    }
+);
+
+var object_create = Object.create || function (prototype) {
+    function Type() { }
+    Type.prototype = prototype;
+    return new Type();
+};
+
+var object_hasOwnProperty = uncurryThis(Object.prototype.hasOwnProperty);
+
+var object_keys = Object.keys || function (object) {
+    var keys = [];
+    for (var key in object) {
+        if (object_hasOwnProperty(object, key)) {
+            keys.push(key);
+        }
+    }
+    return keys;
+};
+
+var object_toString = uncurryThis(Object.prototype.toString);
+
+function isObject(value) {
+    return value === Object(value);
+}
+
+// generator related shims
+
+// FIXME: Remove this function once ES6 generators are in SpiderMonkey.
+function isStopIteration(exception) {
+    return (
+        object_toString(exception) === "[object StopIteration]" ||
+        exception instanceof QReturnValue
+    );
+}
+
+// FIXME: Remove this helper and Q.return once ES6 generators are in
+// SpiderMonkey.
+var QReturnValue;
+if (typeof ReturnValue !== "undefined") {
+    QReturnValue = ReturnValue;
+} else {
+    QReturnValue = function (value) {
+        this.value = value;
+    };
+}
+
+// long stack traces
+
+var STACK_JUMP_SEPARATOR = "From previous event:";
+
+function makeStackTraceLong(error, promise) {
+    // If possible, transform the error stack trace by removing Node and Q
+    // cruft, then concatenating with the stack trace of `promise`. See #57.
+    if (hasStacks &&
+        promise.stack &&
+        typeof error === "object" &&
+        error !== null &&
+        error.stack &&
+        error.stack.indexOf(STACK_JUMP_SEPARATOR) === -1
+    ) {
+        var stacks = [];
+        for (var p = promise; !!p; p = p.source) {
+            if (p.stack) {
+                stacks.unshift(p.stack);
+            }
+        }
+        stacks.unshift(error.stack);
+
+        var concatedStacks = stacks.join("\n" + STACK_JUMP_SEPARATOR + "\n");
+        error.stack = filterStackString(concatedStacks);
+    }
+}
+
+function filterStackString(stackString) {
+    var lines = stackString.split("\n");
+    var desiredLines = [];
+    for (var i = 0; i < lines.length; ++i) {
+        var line = lines[i];
+
+        if (!isInternalFrame(line) && !isNodeFrame(line) && line) {
+            desiredLines.push(line);
+        }
+    }
+    return desiredLines.join("\n");
+}
+
+function isNodeFrame(stackLine) {
+    return stackLine.indexOf("(module.js:") !== -1 ||
+           stackLine.indexOf("(node.js:") !== -1;
+}
+
+function getFileNameAndLineNumber(stackLine) {
+    // Named functions: "at functionName (filename:lineNumber:columnNumber)"
+    // In IE10 function name can have spaces ("Anonymous function") O_o
+    var attempt1 = /at .+ \((.+):(\d+):(?:\d+)\)$/.exec(stackLine);
+    if (attempt1) {
+        return [attempt1[1], Number(attempt1[2])];
+    }
+
+    // Anonymous functions: "at filename:lineNumber:columnNumber"
+    var attempt2 = /at ([^ ]+):(\d+):(?:\d+)$/.exec(stackLine);
+    if (attempt2) {
+        return [attempt2[1], Number(attempt2[2])];
+    }
+
+    // Firefox style: "function@filename:lineNumber or @filename:lineNumber"
+    var attempt3 = /.*@(.+):(\d+)$/.exec(stackLine);
+    if (attempt3) {
+        return [attempt3[1], Number(attempt3[2])];
+    }
+}
+
+function isInternalFrame(stackLine) {
+    var fileNameAndLineNumber = getFileNameAndLineNumber(stackLine);
+
+    if (!fileNameAndLineNumber) {
+        return false;
+    }
+
+    var fileName = fileNameAndLineNumber[0];
+    var lineNumber = fileNameAndLineNumber[1];
+
+    return fileName === qFileName &&
+        lineNumber >= qStartingLine &&
+        lineNumber <= qEndingLine;
+}
+
+// discover own file name and line number range for filtering stack
+// traces
+function captureLine() {
+    if (!hasStacks) {
+        return;
+    }
+
+    try {
+        throw new Error();
+    } catch (e) {
+        var lines = e.stack.split("\n");
+        var firstLine = lines[0].indexOf("@") > 0 ? lines[1] : lines[2];
+        var fileNameAndLineNumber = getFileNameAndLineNumber(firstLine);
+        if (!fileNameAndLineNumber) {
+            return;
+        }
+
+        qFileName = fileNameAndLineNumber[0];
+        return fileNameAndLineNumber[1];
+    }
+}
+
+function deprecate(callback, name, alternative) {
+    return function () {
+        if (typeof console !== "undefined" &&
+            typeof console.warn === "function") {
+            console.warn(name + " is deprecated, use " + alternative +
+                         " instead.", new Error("").stack);
+        }
+        return callback.apply(callback, arguments);
+    };
+}
+
+// end of shims
+// beginning of real work
+
+/**
+ * Constructs a promise for an immediate reference, passes promises through, or
+ * coerces promises from different systems.
+ * @param value immediate reference or promise
+ */
+function Q(value) {
+    // If the object is already a Promise, return it directly.  This enables
+    // the resolve function to both be used to created references from objects,
+    // but to tolerably coerce non-promises to promises.
+    if (value instanceof Promise) {
+        return value;
+    }
+
+    // assimilate thenables
+    if (isPromiseAlike(value)) {
+        return coerce(value);
+    } else {
+        return fulfill(value);
+    }
+}
+Q.resolve = Q;
+
+/**
+ * Performs a task in a future turn of the event loop.
+ * @param {Function} task
+ */
+Q.nextTick = nextTick;
+
+/**
+ * Controls whether or not long stack traces will be on
+ */
+Q.longStackSupport = false;
+
+// enable long stacks if Q_DEBUG is set
+if (typeof process === "object" && process && process.env && process.env.Q_DEBUG) {
+    Q.longStackSupport = true;
+}
+
+/**
+ * Constructs a {promise, resolve, reject} object.
+ *
+ * `resolve` is a callback to invoke with a more resolved value for the
+ * promise. To fulfill the promise, invoke `resolve` with any value that is
+ * not a thenable. To reject the promise, invoke `resolve` with a rejected
+ * thenable, or invoke `reject` with the reason directly. To resolve the
+ * promise to another thenable, thus putting it in the same state, invoke
+ * `resolve` with that other thenable.
+ */
+Q.defer = defer;
+function defer() {
+    // if "messages" is an "Array", that indicates that the promise has not yet
+    // been resolved.  If it is "undefined", it has been resolved.  Each
+    // element of the messages array is itself an array of complete arguments to
+    // forward to the resolved promise.  We coerce the resolution value to a
+    // promise using the `resolve` function because it handles both fully
+    // non-thenable values and other thenables gracefully.
+    var messages = [], progressListeners = [], resolvedPromise;
+
+    var deferred = object_create(defer.prototype);
+    var promise = object_create(Promise.prototype);
+
+    promise.promiseDispatch = function (resolve, op, operands) {
+        var args = array_slice(arguments);
+        if (messages) {
+            messages.push(args);
+            if (op === "when" && operands[1]) { // progress operand
+                progressListeners.push(operands[1]);
+            }
+        } else {
+            Q.nextTick(function () {
+                resolvedPromise.promiseDispatch.apply(resolvedPromise, args);
+            });
+        }
+    };
+
+    // XXX deprecated
+    promise.valueOf = function () {
+        if (messages) {
+            return promise;
+        }
+        var nearerValue = nearer(resolvedPromise);
+        if (isPromise(nearerValue)) {
+            resolvedPromise = nearerValue; // shorten chain
+        }
+        return nearerValue;
+    };
+
+    promise.inspect = function () {
+        if (!resolvedPromise) {
+            return { state: "pending" };
+        }
+        return resolvedPromise.inspect();
+    };
+
+    if (Q.longStackSupport && hasStacks) {
+        try {
+            throw new Error();
+        } catch (e) {
+            // NOTE: don't try to use `Error.captureStackTrace` or transfer the
+            // accessor around; that causes memory leaks as per GH-111. Just
+            // reify the stack trace as a string ASAP.
+            //
+            // At the same time, cut off the first line; it's always just
+            // "[object Promise]\n", as per the `toString`.
+            promise.stack = e.stack.substring(e.stack.indexOf("\n") + 1);
+        }
+    }
+
+    // NOTE: we do the checks for `resolvedPromise` in each method, instead of
+    // consolidating them into `become`, since otherwise we'd create new
+    // promises with the lines `become(whatever(value))`. See e.g. GH-252.
+
+    function become(newPromise) {
+        resolvedPromise = newPromise;
+        promise.source = newPromise;
+
+        array_reduce(messages, function (undefined, message) {
+            Q.nextTick(function () {
+                newPromise.promiseDispatch.apply(newPromise, message);
+            });
+        }, void 0);
+
+        messages = void 0;
+        progressListeners = void 0;
+    }
+
+    deferred.promise = promise;
+    deferred.resolve = function (value) {
+        if (resolvedPromise) {
+            return;
+        }
+
+        become(Q(value));
+    };
+
+    deferred.fulfill = function (value) {
+        if (resolvedPromise) {
+            return;
+        }
+
+        become(fulfill(value));
+    };
+    deferred.reject = function (reason) {
+        if (resolvedPromise) {
+            return;
+        }
+
+        become(reject(reason));
+    };
+    deferred.notify = function (progress) {
+        if (resolvedPromise) {
+            return;
+        }
+
+        array_reduce(progressListeners, function (undefined, progressListener) {
+            Q.nextTick(function () {
+                progressListener(progress);
+            });
+        }, void 0);
+    };
+
+    return deferred;
+}
+
+/**
+ * Creates a Node-style callback that will resolve or reject the deferred
+ * promise.
+ * @returns a nodeback
+ */
+defer.prototype.makeNodeResolver = function () {
+    var self = this;
+    return function (error, value) {
+        if (error) {
+            self.reject(error);
+        } else if (arguments.length > 2) {
+            self.resolve(array_slice(arguments, 1));
+        } else {
+            self.resolve(value);
+        }
+    };
+};
+
+/**
+ * @param resolver {Function} a function that returns nothing and accepts
+ * the resolve, reject, and notify functions for a deferred.
+ * @returns a promise that may be resolved with the given resolve and reject
+ * functions, or rejected by a thrown exception in resolver
+ */
+Q.Promise = promise; // ES6
+Q.promise = promise;
+function promise(resolver) {
+    if (typeof resolver !== "function") {
+        throw new TypeError("resolver must be a function.");
+    }
+    var deferred = defer();
+    try {
+        resolver(deferred.resolve, deferred.reject, deferred.notify);
+    } catch (reason) {
+        deferred.reject(reason);
+    }
+    return deferred.promise;
+}
+
+promise.race = race; // ES6
+promise.all = all; // ES6
+promise.reject = reject; // ES6
+promise.resolve = Q; // ES6
+
+// XXX experimental.  This method is a way to denote that a local value is
+// serializable and should be immediately dispatched to a remote upon request,
+// instead of passing a reference.
+Q.passByCopy = function (object) {
+    //freeze(object);
+    //passByCopies.set(object, true);
+    return object;
+};
+
+Promise.prototype.passByCopy = function () {
+    //freeze(object);
+    //passByCopies.set(object, true);
+    return this;
+};
+
+/**
+ * If two promises eventually fulfill to the same value, promises that value,
+ * but otherwise rejects.
+ * @param x {Any*}
+ * @param y {Any*}
+ * @returns {Any*} a promise for x and y if they are the same, but a rejection
+ * otherwise.
+ *
+ */
+Q.join = function (x, y) {
+    return Q(x).join(y);
+};
+
+Promise.prototype.join = function (that) {
+    return Q([this, that]).spread(function (x, y) {
+        if (x === y) {
+            // TODO: "===" should be Object.is or equiv
+            return x;
+        } else {
+            throw new Error("Can't join: not the same: " + x + " " + y);
+        }
+    });
+};
+
+/**
+ * Returns a promise for the first of an array of promises to become settled.
+ * @param answers {Array[Any*]} promises to race
+ * @returns {Any*} the first promise to be settled
+ */
+Q.race = race;
+function race(answerPs) {
+    return promise(function(resolve, reject) {
+        // Switch to this once we can assume at least ES5
+        // answerPs.forEach(function(answerP) {
+        //     Q(answerP).then(resolve, reject);
+        // });
+        // Use this in the meantime
+        for (var i = 0, len = answerPs.length; i < len; i++) {
+            Q(answerPs[i]).then(resolve, reject);
+        }
+    });
+}
+
+Promise.prototype.race = function () {
+    return this.then(Q.race);
+};
+
+/**
+ * Constructs a Promise with a promise descriptor object and optional fallback
+ * function.  The descriptor contains methods like when(rejected), get(name),
+ * set(name, value), post(name, args), and delete(name), which all
+ * return either a value, a promise for a value, or a rejection.  The fallback
+ * accepts the operation name, a resolver, and any further arguments that would
+ * have been forwarded to the appropriate method above had a method been
+ * provided with the proper name.  The API makes no guarantees about the nature
+ * of the returned object, apart from that it is usable whereever promises are
+ * bought and sold.
+ */
+Q.makePromise = Promise;
+function Promise(descriptor, fallback, inspect) {
+    if (fallback === void 0) {
+        fallback = function (op) {
+            return reject(new Error(
+                "Promise does not support operation: " + op
+            ));
+        };
+    }
+    if (inspect === void 0) {
+        inspect = function () {
+            return {state: "unknown"};
+        };
+    }
+
+    var promise = object_create(Promise.prototype);
+
+    promise.promiseDispatch = function (resolve, op, args) {
+        var result;
+        try {
+            if (descriptor[op]) {
+                result = descriptor[op].apply(promise, args);
+            } else {
+                result = fallback.call(promise, op, args);
+            }
+        } catch (exception) {
+            result = reject(exception);
+        }
+        if (resolve) {
+            resolve(result);
+        }
+    };
+
+    promise.inspect = inspect;
+
+    // XXX deprecated `valueOf` and `exception` support
+    if (inspect) {
+        var inspected = inspect();
+        if (inspected.state === "rejected") {
+            promise.exception = inspected.reason;
+        }
+
+        promise.valueOf = function () {
+            var inspected = inspect();
+            if (inspected.state === "pending" ||
+                inspected.state === "rejected") {
+                return promise;
+            }
+            return inspected.value;
+        };
+    }
+
+    return promise;
+}
+
+Promise.prototype.toString = function () {
+    return "[object Promise]";
+};
+
+Promise.prototype.then = function (fulfilled, rejected, progressed) {
+    var self = this;
+    var deferred = defer();
+    var done = false;   // ensure the untrusted promise makes at most a
+                        // single call to one of the callbacks
+
+    function _fulfilled(value) {
+        try {
+            return typeof fulfilled === "function" ? fulfilled(value) : value;
+        } catch (exception) {
+            return reject(exception);
+        }
+    }
+
+    function _rejected(exception) {
+        if (typeof rejected === "function") {
+            makeStackTraceLong(exception, self);
+            try {
+                return rejected(exception);
+            } catch (newException) {
+                return reject(newException);
+            }
+        }
+        return reject(exception);
+    }
+
+    function _progressed(value) {
+        return typeof progressed === "function" ? progressed(value) : value;
+    }
+
+    Q.nextTick(function () {
+        self.promiseDispatch(function (value) {
+            if (done) {
+                return;
+            }
+            done = true;
+
+            deferred.resolve(_fulfilled(value));
+        }, "when", [function (exception) {
+            if (done) {
+                return;
+            }
+            done = true;
+
+            deferred.resolve(_rejected(exception));
+        }]);
+    });
+
+    // Progress propagator need to be attached in the current tick.
+    self.promiseDispatch(void 0, "when", [void 0, function (value) {
+        var newValue;
+        var threw = false;
+        try {
+            newValue = _progressed(value);
+        } catch (e) {
+            threw = true;
+            if (Q.onerror) {
+                Q.onerror(e);
+            } else {
+                throw e;
+            }
+        }
+
+        if (!threw) {
+            deferred.notify(newValue);
+        }
+    }]);
+
+    return deferred.promise;
+};
+
+Q.tap = function (promise, callback) {
+    return Q(promise).tap(callback);
+};
+
+/**
+ * Works almost like "finally", but not called for rejections.
+ * Original resolution value is passed through callback unaffected.
+ * Callback may return a promise that will be awaited for.
+ * @param {Function} callback
+ * @returns {Q.Promise}
+ * @example
+ * doSomething()
+ *   .then(...)
+ *   .tap(console.log)
+ *   .then(...);
+ */
+Promise.prototype.tap = function (callback) {
+    callback = Q(callback);
+
+    return this.then(function (value) {
+        return callback.fcall(value).thenResolve(value);
+    });
+};
+
+/**
+ * Registers an observer on a promise.
+ *
+ * Guarantees:
+ *
+ * 1. that fulfilled and rejected will be called only once.
+ * 2. that either the fulfilled callback or the rejected callback will be
+ *    called, but not both.
+ * 3. that fulfilled and rejected will not be called in this turn.
+ *
+ * @param value      promise or immediate reference to observe
+ * @param fulfilled  function to be called with the fulfilled value
+ * @param rejected   function to be called with the rejection exception
+ * @param progressed function to be called on any progress notifications
+ * @return promise for the return value from the invoked callback
+ */
+Q.when = when;
+function when(value, fulfilled, rejected, progressed) {
+    return Q(value).then(fulfilled, rejected, progressed);
+}
+
+Promise.prototype.thenResolve = function (value) {
+    return this.then(function () { return value; });
+};
+
+Q.thenResolve = function (promise, value) {
+    return Q(promise).thenResolve(value);
+};
+
+Promise.prototype.thenReject = function (reason) {
+    return this.then(function () { throw reason; });
+};
+
+Q.thenReject = function (promise, reason) {
+    return Q(promise).thenReject(reason);
+};
+
+/**
+ * If an object is not a promise, it is as "near" as possible.
+ * If a promise is rejected, it is as "near" as possible too.
+ * If it’s a fulfilled promise, the fulfillment value is nearer.
+ * If it’s a deferred promise and the deferred has been resolved, the
+ * resolution is "nearer".
+ * @param object
+ * @returns most resolved (nearest) form of the object
+ */
+
+// XXX should we re-do this?
+Q.nearer = nearer;
+function nearer(value) {
+    if (isPromise(value)) {
+        var inspected = value.inspect();
+        if (inspected.state === "fulfilled") {
+            return inspected.value;
+        }
+    }
+    return value;
+}
+
+/**
+ * @returns whether the given object is a promise.
+ * Otherwise it is a fulfilled value.
+ */
+Q.isPromise = isPromise;
+function isPromise(object) {
+    return object instanceof Promise;
+}
+
+Q.isPromiseAlike = isPromiseAlike;
+function isPromiseAlike(object) {
+    return isObject(object) && typeof object.then === "function";
+}
+
+/**
+ * @returns whether the given object is a pending promise, meaning not
+ * fulfilled or rejected.
+ */
+Q.isPending = isPending;
+function isPending(object) {
+    return isPromise(object) && object.inspect().state === "pending";
+}
+
+Promise.prototype.isPending = function () {
+    return this.inspect().state === "pending";
+};
+
+/**
+ * @returns whether the given object is a value or fulfilled
+ * promise.
+ */
+Q.isFulfilled = isFulfilled;
+function isFulfilled(object) {
+    return !isPromise(object) || object.inspect().state === "fulfilled";
+}
+
+Promise.prototype.isFulfilled = function () {
+    return this.inspect().state === "fulfilled";
+};
+
+/**
+ * @returns whether the given object is a rejected promise.
+ */
+Q.isRejected = isRejected;
+function isRejected(object) {
+    return isPromise(object) && object.inspect().state === "rejected";
+}
+
+Promise.prototype.isRejected = function () {
+    return this.inspect().state === "rejected";
+};
+
+//// BEGIN UNHANDLED REJECTION TRACKING
+
+// This promise library consumes exceptions thrown in handlers so they can be
+// handled by a subsequent promise.  The exceptions get added to this array when
+// they are created, and removed when they are handled.  Note that in ES6 or
+// shimmed environments, this would naturally be a `Set`.
+var unhandledReasons = [];
+var unhandledRejections = [];
+var trackUnhandledRejections = true;
+
+function resetUnhandledRejections() {
+    unhandledReasons.length = 0;
+    unhandledRejections.length = 0;
+
+    if (!trackUnhandledRejections) {
+        trackUnhandledRejections = true;
+    }
+}
+
+function trackRejection(promise, reason) {
+    if (!trackUnhandledRejections) {
+        return;
+    }
+
+    unhandledRejections.push(promise);
+    if (reason && typeof reason.stack !== "undefined") {
+        unhandledReasons.push(reason.stack);
+    } else {
+        unhandledReasons.push("(no stack) " + reason);
+    }
+}
+
+function untrackRejection(promise) {
+    if (!trackUnhandledRejections) {
+        return;
+    }
+
+    var at = array_indexOf(unhandledRejections, promise);
+    if (at !== -1) {
+        unhandledRejections.splice(at, 1);
+        unhandledReasons.splice(at, 1);
+    }
+}
+
+Q.resetUnhandledRejections = resetUnhandledRejections;
+
+Q.getUnhandledReasons = function () {
+    // Make a copy so that consumers can't interfere with our internal state.
+    return unhandledReasons.slice();
+};
+
+Q.stopUnhandledRejectionTracking = function () {
+    resetUnhandledRejections();
+    trackUnhandledRejections = false;
+};
+
+resetUnhandledRejections();
+
+//// END UNHANDLED REJECTION TRACKING
+
+/**
+ * Constructs a rejected promise.
+ * @param reason value describing the failure
+ */
+Q.reject = reject;
+function reject(reason) {
+    var rejection = Promise({
+        "when": function (rejected) {
+            // note that the error has been handled
+            if (rejected) {
+                untrackRejection(this);
+            }
+            return rejected ? rejected(reason) : this;
+        }
+    }, function fallback() {
+        return this;
+    }, function inspect() {
+        return { state: "rejected", reason: reason };
+    });
+
+    // Note that the reason has not been handled.
+    trackRejection(rejection, reason);
+
+    return rejection;
+}
+
+/**
+ * Constructs a fulfilled promise for an immediate reference.
+ * @param value immediate reference
+ */
+Q.fulfill = fulfill;
+function fulfill(value) {
+    return Promise({
+        "when": function () {
+            return value;
+        },
+        "get": function (name) {
+            return value[name];
+        },
+        "set": function (name, rhs) {
+            value[name] = rhs;
+        },
+        "delete": function (name) {
+            delete value[name];
+        },
+        "post": function (name, args) {
+            // Mark Miller proposes that post with no name should apply a
+            // promised function.
+            if (name === null || name === void 0) {
+                return value.apply(void 0, args);
+            } else {
+                return value[name].apply(value, args);
+            }
+        },
+        "apply": function (thisp, args) {
+            return value.apply(thisp, args);
+        },
+        "keys": function () {
+            return object_keys(value);
+        }
+    }, void 0, function inspect() {
+        return { state: "fulfilled", value: value };
+    });
+}
+
+/**
+ * Converts thenables to Q promises.
+ * @param promise thenable promise
+ * @returns a Q promise
+ */
+function coerce(promise) {
+    var deferred = defer();
+    Q.nextTick(function () {
+        try {
+            promise.then(deferred.resolve, deferred.reject, deferred.notify);
+        } catch (exception) {
+            deferred.reject(exception);
+        }
+    });
+    return deferred.promise;
+}
+
+/**
+ * Annotates an object such that it will never be
+ * transferred away from this process over any promise
+ * communication channel.
+ * @param object
+ * @returns promise a wrapping of that object that
+ * additionally responds to the "isDef" message
+ * without a rejection.
+ */
+Q.master = master;
+function master(object) {
+    return Promise({
+        "isDef": function () {}
+    }, function fallback(op, args) {
+        return dispatch(object, op, args);
+    }, function () {
+        return Q(object).inspect();
+    });
+}
+
+/**
+ * Spreads the values of a promised array of arguments into the
+ * fulfillment callback.
+ * @param fulfilled callback that receives variadic arguments from the
+ * promised array
+ * @param rejected callback that receives the exception if the promise
+ * is rejected.
+ * @returns a promise for the return value or thrown exception of
+ * either callback.
+ */
+Q.spread = spread;
+function spread(value, fulfilled, rejected) {
+    return Q(value).spread(fulfilled, rejected);
+}
+
+Promise.prototype.spread = function (fulfilled, rejected) {
+    return this.all().then(function (array) {
+        return fulfilled.apply(void 0, array);
+    }, rejected);
+};
+
+/**
+ * The async function is a decorator for generator functions, turning
+ * them into asynchronous generators.  Although generators are only part
+ * of the newest ECMAScript 6 drafts, this code does not cause syntax
+ * errors in older engines.  This code should continue to work and will
+ * in fact improve over time as the language improves.
+ *
+ * ES6 generators are currently part of V8 version 3.19 with the
+ * --harmony-generators runtime flag enabled.  SpiderMonkey has had them
+ * for longer, but under an older Python-inspired form.  This function
+ * works on both kinds of generators.
+ *
+ * Decorates a generator function such that:
+ *  - it may yield promises
+ *  - execution will continue when that promise is fulfilled
+ *  - the value of the yield expression will be the fulfilled value
+ *  - it returns a promise for the return value (when the generator
+ *    stops iterating)
+ *  - the decorated function returns a promise for the return value
+ *    of the generator or the first rejected promise among those
+ *    yielded.
+ *  - if an error is thrown in the generator, it propagates through
+ *    every following yield until it is caught, or until it escapes
+ *    the generator function altogether, and is translated into a
+ *    rejection for the promise returned by the decorated generator.
+ */
+Q.async = async;
+function async(makeGenerator) {
+    return function () {
+        // when verb is "send", arg is a value
+        // when verb is "throw", arg is an exception
+        function continuer(verb, arg) {
+            var result;
+
+            // Until V8 3.19 / Chromium 29 is released, SpiderMonkey is the only
+            // engine that has a deployed base of browsers that support generators.
+            // However, SM's generators use the Python-inspired semantics of
+            // outdated ES6 drafts.  We would like to support ES6, but we'd also
+            // like to make it possible to use generators in deployed browsers, so
+            // we also support Python-style generators.  At some point we can remove
+            // this block.
+
+            if (typeof StopIteration === "undefined") {
+                // ES6 Generators
+                try {
+                    result = generator[verb](arg);
+                } catch (exception) {
+                    return reject(exception);
+                }
+                if (result.done) {
+                    return Q(result.value);
+                } else {
+                    return when(result.value, callback, errback);
+                }
+            } else {
+                // SpiderMonkey Generators
+                // FIXME: Remove this case when SM does ES6 generators.
+                try {
+                    result = generator[verb](arg);
+                } catch (exception) {
+                    if (isStopIteration(exception)) {
+                        return Q(exception.value);
+                    } else {
+                        return reject(exception);
+                    }
+                }
+                return when(result, callback, errback);
+            }
+        }
+        var generator = makeGenerator.apply(this, arguments);
+        var callback = continuer.bind(continuer, "next");
+        var errback = continuer.bind(continuer, "throw");
+        return callback();
+    };
+}
+
+/**
+ * The spawn function is a small wrapper around async that immediately
+ * calls the generator and also ends the promise chain, so that any
+ * unhandled errors are thrown instead of forwarded to the error
+ * handler. This is useful because it's extremely common to run
+ * generators at the top-level to work with libraries.
+ */
+Q.spawn = spawn;
+function spawn(makeGenerator) {
+    Q.done(Q.async(makeGenerator)());
+}
+
+// FIXME: Remove this interface once ES6 generators are in SpiderMonkey.
+/**
+ * Throws a ReturnValue exception to stop an asynchronous generator.
+ *
+ * This interface is a stop-gap measure to support generator return
+ * values in older Firefox/SpiderMonkey.  In browsers that support ES6
+ * generators like Chromium 29, just use "return" in your generator
+ * functions.
+ *
+ * @param value the return value for the surrounding generator
+ * @throws ReturnValue exception with the value.
+ * @example
+ * // ES6 style
+ * Q.async(function* () {
+ *      var foo = yield getFooPromise();
+ *      var bar = yield getBarPromise();
+ *      return foo + bar;
+ * })
+ * // Older SpiderMonkey style
+ * Q.async(function () {
+ *      var foo = yield getFooPromise();
+ *      var bar = yield getBarPromise();
+ *      Q.return(foo + bar);
+ * })
+ */
+Q["return"] = _return;
+function _return(value) {
+    throw new QReturnValue(value);
+}
+
+/**
+ * The promised function decorator ensures that any promise arguments
+ * are settled and passed as values (`this` is also settled and passed
+ * as a value).  It will also ensure that the result of a function is
+ * always a promise.
+ *
+ * @example
+ * var add = Q.promised(function (a, b) {
+ *     return a + b;
+ * });
+ * add(Q(a), Q(B));
+ *
+ * @param {function} callback The function to decorate
+ * @returns {function} a function that has been decorated.
+ */
+Q.promised = promised;
+function promised(callback) {
+    return function () {
+        return spread([this, all(arguments)], function (self, args) {
+            return callback.apply(self, args);
+        });
+    };
+}
+
+/**
+ * sends a message to a value in a future turn
+ * @param object* the recipient
+ * @param op the name of the message operation, e.g., "when",
+ * @param args further arguments to be forwarded to the operation
+ * @returns result {Promise} a promise for the result of the operation
+ */
+Q.dispatch = dispatch;
+function dispatch(object, op, args) {
+    return Q(object).dispatch(op, args);
+}
+
+Promise.prototype.dispatch = function (op, args) {
+    var self = this;
+    var deferred = defer();
+    Q.nextTick(function () {
+        self.promiseDispatch(deferred.resolve, op, args);
+    });
+    return deferred.promise;
+};
+
+/**
+ * Gets the value of a property in a future turn.
+ * @param object    promise or immediate reference for target object
+ * @param name      name of property to get
+ * @return promise for the property value
+ */
+Q.get = function (object, key) {
+    return Q(object).dispatch("get", [key]);
+};
+
+Promise.prototype.get = function (key) {
+    return this.dispatch("get", [key]);
+};
+
+/**
+ * Sets the value of a property in a future turn.
+ * @param object    promise or immediate reference for object object
+ * @param name      name of property to set
+ * @param value     new value of property
+ * @return promise for the return value
+ */
+Q.set = function (object, key, value) {
+    return Q(object).dispatch("set", [key, value]);
+};
+
+Promise.prototype.set = function (key, value) {
+    return this.dispatch("set", [key, value]);
+};
+
+/**
+ * Deletes a property in a future turn.
+ * @param object    promise or immediate reference for target object
+ * @param name      name of property to delete
+ * @return promise for the return value
+ */
+Q.del = // XXX legacy
+Q["delete"] = function (object, key) {
+    return Q(object).dispatch("delete", [key]);
+};
+
+Promise.prototype.del = // XXX legacy
+Promise.prototype["delete"] = function (key) {
+    return this.dispatch("delete", [key]);
+};
+
+/**
+ * Invokes a method in a future turn.
+ * @param object    promise or immediate reference for target object
+ * @param name      name of method to invoke
+ * @param value     a value to post, typically an array of
+ *                  invocation arguments for promises that
+ *                  are ultimately backed with `resolve` values,
+ *                  as opposed to those backed with URLs
+ *                  wherein the posted value can be any
+ *                  JSON serializable object.
+ * @return promise for the return value
+ */
+// bound locally because it is used by other methods
+Q.mapply = // XXX As proposed by "Redsandro"
+Q.post = function (object, name, args) {
+    return Q(object).dispatch("post", [name, args]);
+};
+
+Promise.prototype.mapply = // XXX As proposed by "Redsandro"
+Promise.prototype.post = function (name, args) {
+    return this.dispatch("post", [name, args]);
+};
+
+/**
+ * Invokes a method in a future turn.
+ * @param object    promise or immediate reference for target object
+ * @param name      name of method to invoke
+ * @param ...args   array of invocation arguments
+ * @return promise for the return value
+ */
+Q.send = // XXX Mark Miller's proposed parlance
+Q.mcall = // XXX As proposed by "Redsandro"
+Q.invoke = function (object, name /*...args*/) {
+    return Q(object).dispatch("post", [name, array_slice(arguments, 2)]);
+};
+
+Promise.prototype.send = // XXX Mark Miller's proposed parlance
+Promise.prototype.mcall = // XXX As proposed by "Redsandro"
+Promise.prototype.invoke = function (name /*...args*/) {
+    return this.dispatch("post", [name, array_slice(arguments, 1)]);
+};
+
+/**
+ * Applies the promised function in a future turn.
+ * @param object    promise or immediate reference for target function
+ * @param args      array of application arguments
+ */
+Q.fapply = function (object, args) {
+    return Q(object).dispatch("apply", [void 0, args]);
+};
+
+Promise.prototype.fapply = function (args) {
+    return this.dispatch("apply", [void 0, args]);
+};
+
+/**
+ * Calls the promised function in a future turn.
+ * @param object    promise or immediate reference for target function
+ * @param ...args   array of application arguments
+ */
+Q["try"] =
+Q.fcall = function (object /* ...args*/) {
+    return Q(object).dispatch("apply", [void 0, array_slice(arguments, 1)]);
+};
+
+Promise.prototype.fcall = function (/*...args*/) {
+    return this.dispatch("apply", [void 0, array_slice(arguments)]);
+};
+
+/**
+ * Binds the promised function, transforming return values into a fulfilled
+ * promise and thrown errors into a rejected one.
+ * @param object    promise or immediate reference for target function
+ * @param ...args   array of application arguments
+ */
+Q.fbind = function (object /*...args*/) {
+    var promise = Q(object);
+    var args = array_slice(arguments, 1);
+    return function fbound() {
+        return promise.dispatch("apply", [
+            this,
+            args.concat(array_slice(arguments))
+        ]);
+    };
+};
+Promise.prototype.fbind = function (/*...args*/) {
+    var promise = this;
+    var args = array_slice(arguments);
+    return function fbound() {
+        return promise.dispatch("apply", [
+            this,
+            args.concat(array_slice(arguments))
+        ]);
+    };
+};
+
+/**
+ * Requests the names of the owned properties of a promised
+ * object in a future turn.
+ * @param object    promise or immediate reference for target object
+ * @return promise for the keys of the eventually settled object
+ */
+Q.keys = function (object) {
+    return Q(object).dispatch("keys", []);
+};
+
+Promise.prototype.keys = function () {
+    return this.dispatch("keys", []);
+};
+
+/**
+ * Turns an array of promises into a promise for an array.  If any of
+ * the promises gets rejected, the whole array is rejected immediately.
+ * @param {Array*} an array (or promise for an array) of values (or
+ * promises for values)
+ * @returns a promise for an array of the corresponding values
+ */
+// By Mark Miller
+// http://wiki.ecmascript.org/doku.php?id=strawman:concurrency&rev=1308776521#allfulfilled
+Q.all = all;
+function all(promises) {
+    return when(promises, function (promises) {
+        var countDown = 0;
+        var deferred = defer();
+        array_reduce(promises, function (undefined, promise, index) {
+            var snapshot;
+            if (
+                isPromise(promise) &&
+                (snapshot = promise.inspect()).state === "fulfilled"
+            ) {
+                promises[index] = snapshot.value;
+            } else {
+                ++countDown;
+                when(
+                    promise,
+                    function (value) {
+                        promises[index] = value;
+                        if (--countDown === 0) {
+                            deferred.resolve(promises);
+                        }
+                    },
+                    deferred.reject,
+                    function (progress) {
+                        deferred.notify({ index: index, value: progress });
+                    }
+                );
+            }
+        }, void 0);
+        if (countDown === 0) {
+            deferred.resolve(promises);
+        }
+        return deferred.promise;
+    });
+}
+
+Promise.prototype.all = function () {
+    return all(this);
+};
+
+/**
+ * Waits for all promises to be settled, either fulfilled or
+ * rejected.  This is distinct from `all` since that would stop
+ * waiting at the first rejection.  The promise returned by
+ * `allResolved` will never be rejected.
+ * @param promises a promise for an array (or an array) of promises
+ * (or values)
+ * @return a promise for an array of promises
+ */
+Q.allResolved = deprecate(allResolved, "allResolved", "allSettled");
+function allResolved(promises) {
+    return when(promises, function (promises) {
+        promises = array_map(promises, Q);
+        return when(all(array_map(promises, function (promise) {
+            return when(promise, noop, noop);
+        })), function () {
+            return promises;
+        });
+    });
+}
+
+Promise.prototype.allResolved = function () {
+    return allResolved(this);
+};
+
+/**
+ * @see Promise#allSettled
+ */
+Q.allSettled = allSettled;
+function allSettled(promises) {
+    return Q(promises).allSettled();
+}
+
+/**
+ * Turns an array of promises into a promise for an array of their states (as
+ * returned by `inspect`) when they have all settled.
+ * @param {Array[Any*]} values an array (or promise for an array) of values (or
+ * promises for values)
+ * @returns {Array[State]} an array of states for the respective values.
+ */
+Promise.prototype.allSettled = function () {
+    return this.then(function (promises) {
+        return all(array_map(promises, function (promise) {
+            promise = Q(promise);
+            function regardless() {
+                return promise.inspect();
+            }
+            return promise.then(regardless, regardless);
+        }));
+    });
+};
+
+/**
+ * Captures the failure of a promise, giving an oportunity to recover
+ * with a callback.  If the given promise is fulfilled, the returned
+ * promise is fulfilled.
+ * @param {Any*} promise for something
+ * @param {Function} callback to fulfill the returned promise if the
+ * given promise is rejected
+ * @returns a promise for the return value of the callback
+ */
+Q.fail = // XXX legacy
+Q["catch"] = function (object, rejected) {
+    return Q(object).then(void 0, rejected);
+};
+
+Promise.prototype.fail = // XXX legacy
+Promise.prototype["catch"] = function (rejected) {
+    return this.then(void 0, rejected);
+};
+
+/**
+ * Attaches a listener that can respond to progress notifications from a
+ * promise's originating deferred. This listener receives the exact arguments
+ * passed to ``deferred.notify``.
+ * @param {Any*} promise for something
+ * @param {Function} callback to receive any progress notifications
+ * @returns the given promise, unchanged
+ */
+Q.progress = progress;
+function progress(object, progressed) {
+    return Q(object).then(void 0, void 0, progressed);
+}
+
+Promise.prototype.progress = function (progressed) {
+    return this.then(void 0, void 0, progressed);
+};
+
+/**
+ * Provides an opportunity to observe the settling of a promise,
+ * regardless of whether the promise is fulfilled or rejected.  Forwards
+ * the resolution to the returned promise when the callback is done.
+ * The callback can return a promise to defer completion.
+ * @param {Any*} promise
+ * @param {Function} callback to observe the resolution of the given
+ * promise, takes no arguments.
+ * @returns a promise for the resolution of the given promise when
+ * ``fin`` is done.
+ */
+Q.fin = // XXX legacy
+Q["finally"] = function (object, callback) {
+    return Q(object)["finally"](callback);
+};
+
+Promise.prototype.fin = // XXX legacy
+Promise.prototype["finally"] = function (callback) {
+    callback = Q(callback);
+    return this.then(function (value) {
+        return callback.fcall().then(function () {
+            return value;
+        });
+    }, function (reason) {
+        // TODO attempt to recycle the rejection with "this".
+        return callback.fcall().then(function () {
+            throw reason;
+        });
+    });
+};
+
+/**
+ * Terminates a chain of promises, forcing rejections to be
+ * thrown as exceptions.
+ * @param {Any*} promise at the end of a chain of promises
+ * @returns nothing
+ */
+Q.done = function (object, fulfilled, rejected, progress) {
+    return Q(object).done(fulfilled, rejected, progress);
+};
+
+Promise.prototype.done = function (fulfilled, rejected, progress) {
+    var onUnhandledError = function (error) {
+        // forward to a future turn so that ``when``
+        // does not catch it and turn it into a rejection.
+        Q.nextTick(function () {
+            makeStackTraceLong(error, promise);
+            if (Q.onerror) {
+                Q.onerror(error);
+            } else {
+                throw error;
+            }
+        });
+    };
+
+    // Avoid unnecessary `nextTick`ing via an unnecessary `when`.
+    var promise = fulfilled || rejected || progress ?
+        this.then(fulfilled, rejected, progress) :
+        this;
+
+    if (typeof process === "object" && process && process.domain) {
+        onUnhandledError = process.domain.bind(onUnhandledError);
+    }
+
+    promise.then(void 0, onUnhandledError);
+};
+
+/**
+ * Causes a promise to be rejected if it does not get fulfilled before
+ * some milliseconds time out.
+ * @param {Any*} promise
+ * @param {Number} milliseconds timeout
+ * @param {Any*} custom error message or Error object (optional)
+ * @returns a promise for the resolution of the given promise if it is
+ * fulfilled before the timeout, otherwise rejected.
+ */
+Q.timeout = function (object, ms, error) {
+    return Q(object).timeout(ms, error);
+};
+
+Promise.prototype.timeout = function (ms, error) {
+    var deferred = defer();
+    var timeoutId = setTimeout(function () {
+        if (!error || "string" === typeof error) {
+            error = new Error(error || "Timed out after " + ms + " ms");
+            error.code = "ETIMEDOUT";
+        }
+        deferred.reject(error);
+    }, ms);
+
+    this.then(function (value) {
+        clearTimeout(timeoutId);
+        deferred.resolve(value);
+    }, function (exception) {
+        clearTimeout(timeoutId);
+        deferred.reject(exception);
+    }, deferred.notify);
+
+    return deferred.promise;
+};
+
+/**
+ * Returns a promise for the given value (or promised value), some
+ * milliseconds after it resolved. Passes rejections immediately.
+ * @param {Any*} promise
+ * @param {Number} milliseconds
+ * @returns a promise for the resolution of the given promise after milliseconds
+ * time has elapsed since the resolution of the given promise.
+ * If the given promise rejects, that is passed immediately.
+ */
+Q.delay = function (object, timeout) {
+    if (timeout === void 0) {
+        timeout = object;
+        object = void 0;
+    }
+    return Q(object).delay(timeout);
+};
+
+Promise.prototype.delay = function (timeout) {
+    return this.then(function (value) {
+        var deferred = defer();
+        setTimeout(function () {
+            deferred.resolve(value);
+        }, timeout);
+        return deferred.promise;
+    });
+};
+
+/**
+ * Passes a continuation to a Node function, which is called with the given
+ * arguments provided as an array, and returns a promise.
+ *
+ *      Q.nfapply(FS.readFile, [__filename])
+ *      .then(function (content) {
+ *      })
+ *
+ */
+Q.nfapply = function (callback, args) {
+    return Q(callback).nfapply(args);
+};
+
+Promise.prototype.nfapply = function (args) {
+    var deferred = defer();
+    var nodeArgs = array_slice(args);
+    nodeArgs.push(deferred.makeNodeResolver());
+    this.fapply(nodeArgs).fail(deferred.reject);
+    return deferred.promise;
+};
+
+/**
+ * Passes a continuation to a Node function, which is called with the given
+ * arguments provided individually, and returns a promise.
+ * @example
+ * Q.nfcall(FS.readFile, __filename)
+ * .then(function (content) {
+ * })
+ *
+ */
+Q.nfcall = function (callback /*...args*/) {
+    var args = array_slice(arguments, 1);
+    return Q(callback).nfapply(args);
+};
+
+Promise.prototype.nfcall = function (/*...args*/) {
+    var nodeArgs = array_slice(arguments);
+    var deferred = defer();
+    nodeArgs.push(deferred.makeNodeResolver());
+    this.fapply(nodeArgs).fail(deferred.reject);
+    return deferred.promise;
+};
+
+/**
+ * Wraps a NodeJS continuation passing function and returns an equivalent
+ * version that returns a promise.
+ * @example
+ * Q.nfbind(FS.readFile, __filename)("utf-8")
+ * .then(console.log)
+ * .done()
+ */
+Q.nfbind =
+Q.denodeify = function (callback /*...args*/) {
+    var baseArgs = array_slice(arguments, 1);
+    return function () {
+        var nodeArgs = baseArgs.concat(array_slice(arguments));
+        var deferred = defer();
+        nodeArgs.push(deferred.makeNodeResolver());
+        Q(callback).fapply(nodeArgs).fail(deferred.reject);
+        return deferred.promise;
+    };
+};
+
+Promise.prototype.nfbind =
+Promise.prototype.denodeify = function (/*...args*/) {
+    var args = array_slice(arguments);
+    args.unshift(this);
+    return Q.denodeify.apply(void 0, args);
+};
+
+Q.nbind = function (callback, thisp /*...args*/) {
+    var baseArgs = array_slice(arguments, 2);
+    return function () {
+        var nodeArgs = baseArgs.concat(array_slice(arguments));
+        var deferred = defer();
+        nodeArgs.push(deferred.makeNodeResolver());
+        function bound() {
+            return callback.apply(thisp, arguments);
+        }
+        Q(bound).fapply(nodeArgs).fail(deferred.reject);
+        return deferred.promise;
+    };
+};
+
+Promise.prototype.nbind = function (/*thisp, ...args*/) {
+    var args = array_slice(arguments, 0);
+    args.unshift(this);
+    return Q.nbind.apply(void 0, args);
+};
+
+/**
+ * Calls a method of a Node-style object that accepts a Node-style
+ * callback with a given array of arguments, plus a provided callback.
+ * @param object an object that has the named method
+ * @param {String} name name of the method of object
+ * @param {Array} args arguments to pass to the method; the callback
+ * will be provided by Q and appended to these arguments.
+ * @returns a promise for the value or error
+ */
+Q.nmapply = // XXX As proposed by "Redsandro"
+Q.npost = function (object, name, args) {
+    return Q(object).npost(name, args);
+};
+
+Promise.prototype.nmapply = // XXX As proposed by "Redsandro"
+Promise.prototype.npost = function (name, args) {
+    var nodeArgs = array_slice(args || []);
+    var deferred = defer();
+    nodeArgs.push(deferred.makeNodeResolver());
+    this.dispatch("post", [name, nodeArgs]).fail(deferred.reject);
+    return deferred.promise;
+};
+
+/**
+ * Calls a method of a Node-style object that accepts a Node-style
+ * callback, forwarding the given variadic arguments, plus a provided
+ * callback argument.
+ * @param object an object that has the named method
+ * @param {String} name name of the method of object
+ * @param ...args arguments to pass to the method; the callback will
+ * be provided by Q and appended to these arguments.
+ * @returns a promise for the value or error
+ */
+Q.nsend = // XXX Based on Mark Miller's proposed "send"
+Q.nmcall = // XXX Based on "Redsandro's" proposal
+Q.ninvoke = function (object, name /*...args*/) {
+    var nodeArgs = array_slice(arguments, 2);
+    var deferred = defer();
+    nodeArgs.push(deferred.makeNodeResolver());
+    Q(object).dispatch("post", [name, nodeArgs]).fail(deferred.reject);
+    return deferred.promise;
+};
+
+Promise.prototype.nsend = // XXX Based on Mark Miller's proposed "send"
+Promise.prototype.nmcall = // XXX Based on "Redsandro's" proposal
+Promise.prototype.ninvoke = function (name /*...args*/) {
+    var nodeArgs = array_slice(arguments, 1);
+    var deferred = defer();
+    nodeArgs.push(deferred.makeNodeResolver());
+    this.dispatch("post", [name, nodeArgs]).fail(deferred.reject);
+    return deferred.promise;
+};
+
+/**
+ * If a function would like to support both Node continuation-passing-style and
+ * promise-returning-style, it can end its internal promise chain with
+ * `nodeify(nodeback)`, forwarding the optional nodeback argument.  If the user
+ * elects to use a nodeback, the result will be sent there.  If they do not
+ * pass a nodeback, they will receive the result promise.
+ * @param object a result (or a promise for a result)
+ * @param {Function} nodeback a Node.js-style callback
+ * @returns either the promise or nothing
+ */
+Q.nodeify = nodeify;
+function nodeify(object, nodeback) {
+    return Q(object).nodeify(nodeback);
+}
+
+Promise.prototype.nodeify = function (nodeback) {
+    if (nodeback) {
+        this.then(function (value) {
+            Q.nextTick(function () {
+                nodeback(null, value);
+            });
+        }, function (error) {
+            Q.nextTick(function () {
+                nodeback(error);
+            });
+        });
+    } else {
+        return this;
+    }
+};
+
+// All code before this point will be filtered from stack traces.
+var qEndingLine = captureLine();
+
+return Q;
+
+});
+
+},{"__browserify_process":69}],72:[function(require,module,exports){
 // Copyright 2010-2012 Mikeal Rogers
 //
 //    Licensed under the Apache License, Version 2.0 (the "License");
@@ -40093,7 +42268,7 @@ Object.defineProperty(request, 'debug', {
   }
 })
 
-},{"./lib/cookies":72,"./lib/helpers":75,"./request":127,"util":36}],71:[function(require,module,exports){
+},{"./lib/cookies":74,"./lib/helpers":77,"./request":129,"util":37}],73:[function(require,module,exports){
 'use strict'
 
 var caseless = require('caseless')
@@ -40228,7 +42403,7 @@ Auth.prototype.response = function (method, path, headers) {
 
 exports.Auth = Auth
 
-},{"./helpers":75,"caseless":87,"node-uuid":114}],72:[function(require,module,exports){
+},{"./helpers":77,"caseless":89,"node-uuid":116}],74:[function(require,module,exports){
 'use strict'
 
 var tough = require('tough-cookie')
@@ -40269,7 +42444,7 @@ exports.jar = function(store) {
   return new RequestJar(store)
 }
 
-},{"tough-cookie":122}],73:[function(require,module,exports){
+},{"tough-cookie":124}],75:[function(require,module,exports){
 'use strict'
 
 module.exports =
@@ -40281,7 +42456,7 @@ function copy (obj) {
   return o
 }
 
-},{}],74:[function(require,module,exports){
+},{}],76:[function(require,module,exports){
 var process=require("__browserify_process");'use strict'
 
 function formatHostname(hostname) {
@@ -40362,7 +42537,7 @@ function getProxyFromURI(uri) {
 
 module.exports = getProxyFromURI
 
-},{"__browserify_process":68}],75:[function(require,module,exports){
+},{"__browserify_process":69}],77:[function(require,module,exports){
 var process=require("__browserify_process"),Buffer=require("__browserify_Buffer").Buffer;'use strict'
 
 var extend = require('util')._extend
@@ -40453,7 +42628,7 @@ exports.isReadStream          = isReadStream
 exports.toBase64              = toBase64
 exports.defer                 = deferMethod()
 
-},{"__browserify_Buffer":67,"__browserify_process":68,"crypto":41,"json-stringify-safe":110,"util":36}],76:[function(require,module,exports){
+},{"__browserify_Buffer":68,"__browserify_process":69,"crypto":42,"json-stringify-safe":112,"util":37}],78:[function(require,module,exports){
 'use strict'
 
 var querystring = require('querystring')
@@ -40576,7 +42751,7 @@ exports.oauth = function (args) {
   return {oauth:data, transport:transport}
 }
 
-},{"caseless":87,"node-uuid":114,"oauth-sign":115,"qs":116,"querystring":30}],77:[function(require,module,exports){
+},{"caseless":89,"node-uuid":116,"oauth-sign":117,"qs":118,"querystring":31}],79:[function(require,module,exports){
 
 /*!
  * knox - auth
@@ -40780,7 +42955,7 @@ function canonicalizeResource (resource) {
 }
 module.exports.canonicalizeResource = canonicalizeResource
 
-},{"crypto":41,"url":35}],78:[function(require,module,exports){
+},{"crypto":42,"url":36}],80:[function(require,module,exports){
 var Buffer=require("__browserify_Buffer").Buffer;var DuplexStream = require('readable-stream/duplex')
   , util         = require('util')
 
@@ -40998,10 +43173,10 @@ BufferList.prototype.destroy = function () {
 
 module.exports = BufferList
 
-},{"__browserify_Buffer":67,"readable-stream/duplex":79,"util":36}],79:[function(require,module,exports){
+},{"__browserify_Buffer":68,"readable-stream/duplex":81,"util":37}],81:[function(require,module,exports){
 module.exports = require("./lib/_stream_duplex.js")
 
-},{"./lib/_stream_duplex.js":80}],80:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":82}],82:[function(require,module,exports){
 var process=require("__browserify_process");// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -41092,7 +43267,7 @@ function forEach (xs, f) {
   }
 }
 
-},{"./_stream_readable":81,"./_stream_writable":82,"__browserify_process":68,"core-util-is":83,"inherits":84}],81:[function(require,module,exports){
+},{"./_stream_readable":83,"./_stream_writable":84,"__browserify_process":69,"core-util-is":85,"inherits":86}],83:[function(require,module,exports){
 var process=require("__browserify_process");// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -42076,7 +44251,7 @@ function indexOf (xs, x) {
   return -1;
 }
 
-},{"__browserify_process":68,"buffer":38,"core-util-is":83,"events":25,"inherits":84,"isarray":85,"stream":31,"string_decoder/":86}],82:[function(require,module,exports){
+},{"__browserify_process":69,"buffer":39,"core-util-is":85,"events":26,"inherits":86,"isarray":87,"stream":32,"string_decoder/":88}],84:[function(require,module,exports){
 var process=require("__browserify_process");// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -42464,7 +44639,7 @@ function endWritable(stream, state, cb) {
   state.ended = true;
 }
 
-},{"./_stream_duplex":80,"__browserify_process":68,"buffer":38,"core-util-is":83,"inherits":84,"stream":31}],83:[function(require,module,exports){
+},{"./_stream_duplex":82,"__browserify_process":69,"buffer":39,"core-util-is":85,"inherits":86,"stream":32}],85:[function(require,module,exports){
 var Buffer=require("__browserify_Buffer").Buffer;// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -42572,7 +44747,7 @@ exports.isBuffer = isBuffer;
 function objectToString(o) {
   return Object.prototype.toString.call(o);
 }
-},{"__browserify_Buffer":67}],84:[function(require,module,exports){
+},{"__browserify_Buffer":68}],86:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -42597,12 +44772,12 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],85:[function(require,module,exports){
+},{}],87:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],86:[function(require,module,exports){
+},{}],88:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -42825,7 +45000,7 @@ function base64DetectIncompleteChar(buffer) {
   this.charLength = this.charReceived ? 3 : 0;
 }
 
-},{"buffer":38}],87:[function(require,module,exports){
+},{"buffer":39}],89:[function(require,module,exports){
 function Caseless (dict) {
   this.dict = dict || {}
 }
@@ -42892,7 +45067,7 @@ module.exports.httpify = function (resp, headers) {
   return c
 }
 
-},{}],88:[function(require,module,exports){
+},{}],90:[function(require,module,exports){
 var Buffer=require("__browserify_Buffer").Buffer;var util = require('util');
 var Stream = require('stream').Stream;
 var DelayedStream = require('delayed-stream');
@@ -43082,7 +45257,7 @@ CombinedStream.prototype._emitError = function(err) {
   this.emit('error', err);
 };
 
-},{"__browserify_Buffer":67,"delayed-stream":89,"stream":31,"util":36}],89:[function(require,module,exports){
+},{"__browserify_Buffer":68,"delayed-stream":91,"stream":32,"util":37}],91:[function(require,module,exports){
 var Stream = require('stream').Stream;
 var util = require('util');
 
@@ -43183,7 +45358,7 @@ DelayedStream.prototype._checkIfMaxDataSizeExceeded = function() {
   this.emit('error', new Error(message));
 };
 
-},{"stream":31,"util":36}],90:[function(require,module,exports){
+},{"stream":32,"util":37}],92:[function(require,module,exports){
 module.exports = ForeverAgent
 ForeverAgent.SSL = ForeverAgentSSL
 
@@ -43304,7 +45479,7 @@ function createConnectionSSL (port, host, options) {
   return tls.connect(options);
 }
 
-},{"http":46,"https":27,"net":28,"tls":34,"util":36}],91:[function(require,module,exports){
+},{"http":47,"https":28,"net":29,"tls":35,"util":37}],93:[function(require,module,exports){
 var process=require("__browserify_process"),Buffer=require("__browserify_Buffer").Buffer;var CombinedStream = require('combined-stream');
 var util = require('util');
 var path = require('path');
@@ -43657,7 +45832,7 @@ function populate(dst, src) {
   return dst;
 }
 
-},{"__browserify_Buffer":67,"__browserify_process":68,"async":92,"combined-stream":88,"fs":26,"http":46,"https":27,"mime-types":111,"path":29,"url":35,"util":36}],92:[function(require,module,exports){
+},{"__browserify_Buffer":68,"__browserify_process":69,"async":94,"combined-stream":90,"fs":27,"http":47,"https":28,"mime-types":113,"path":30,"url":36,"util":37}],94:[function(require,module,exports){
 var process=require("__browserify_process");/*!
  * async
  * https://github.com/caolan/async
@@ -44782,7 +46957,7 @@ var process=require("__browserify_process");/*!
 
 }());
 
-},{"__browserify_process":68}],93:[function(require,module,exports){
+},{"__browserify_process":69}],95:[function(require,module,exports){
 /*
     HTTP Hawk Authentication Scheme
     Copyright (c) 2012-2014, Eran Hammer <eran@hammer.io>
@@ -45425,7 +47600,7 @@ if (typeof module !== 'undefined' && module.exports) {
 
 // $lab:coverage:on$
 
-},{}],94:[function(require,module,exports){
+},{}],96:[function(require,module,exports){
 // Copyright 2011 Joyent, Inc.  All rights reserved.
 
 var parser = require('./parser');
@@ -45453,7 +47628,7 @@ module.exports = {
   verifySignature: verify.verifySignature
 };
 
-},{"./parser":95,"./signer":96,"./util":97,"./verify":98}],95:[function(require,module,exports){
+},{"./parser":97,"./signer":98,"./util":99,"./verify":100}],97:[function(require,module,exports){
 // Copyright 2012 Joyent, Inc.  All rights reserved.
 
 var assert = require('assert-plus');
@@ -45759,7 +47934,7 @@ module.exports = {
 
 };
 
-},{"assert-plus":105,"util":36}],96:[function(require,module,exports){
+},{"assert-plus":107,"util":37}],98:[function(require,module,exports){
 // Copyright 2012 Joyent, Inc.  All rights reserved.
 
 var assert = require('assert-plus');
@@ -45939,7 +48114,7 @@ module.exports = {
 
 };
 
-},{"assert-plus":105,"crypto":41,"http":46,"util":36}],97:[function(require,module,exports){
+},{"assert-plus":107,"crypto":42,"http":47,"util":37}],99:[function(require,module,exports){
 var Buffer=require("__browserify_Buffer").Buffer;// Copyright 2012 Joyent, Inc.  All rights reserved.
 
 var assert = require('assert-plus');
@@ -46245,7 +48420,7 @@ module.exports = {
   }
 };
 
-},{"__browserify_Buffer":67,"asn1":104,"assert-plus":105,"crypto":41,"ctype":108}],98:[function(require,module,exports){
+},{"__browserify_Buffer":68,"asn1":106,"assert-plus":107,"crypto":42,"ctype":110}],100:[function(require,module,exports){
 // Copyright 2011 Joyent, Inc.  All rights reserved.
 
 var assert = require('assert-plus');
@@ -46289,7 +48464,7 @@ module.exports = {
 
 };
 
-},{"assert-plus":105,"crypto":41}],99:[function(require,module,exports){
+},{"assert-plus":107,"crypto":42}],101:[function(require,module,exports){
 // Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 
 
@@ -46304,7 +48479,7 @@ module.exports = {
 
 };
 
-},{}],100:[function(require,module,exports){
+},{}],102:[function(require,module,exports){
 // Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 
 var errors = require('./errors');
@@ -46333,7 +48508,7 @@ for (var e in errors) {
     module.exports[e] = errors[e];
 }
 
-},{"./errors":99,"./reader":101,"./types":102,"./writer":103}],101:[function(require,module,exports){
+},{"./errors":101,"./reader":103,"./types":104,"./writer":105}],103:[function(require,module,exports){
 var Buffer=require("__browserify_Buffer").Buffer;// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 
 var assert = require('assert');
@@ -46602,7 +48777,7 @@ Reader.prototype._readTag = function(tag) {
 
 module.exports = Reader;
 
-},{"./errors":99,"./types":102,"__browserify_Buffer":67,"assert":24}],102:[function(require,module,exports){
+},{"./errors":101,"./types":104,"__browserify_Buffer":68,"assert":25}],104:[function(require,module,exports){
 // Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 
 
@@ -46640,7 +48815,7 @@ module.exports = {
   Context: 128
 };
 
-},{}],103:[function(require,module,exports){
+},{}],105:[function(require,module,exports){
 var Buffer=require("__browserify_Buffer").Buffer;// Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 
 var assert = require('assert');
@@ -46959,7 +49134,7 @@ Writer.prototype._ensure = function(len) {
 
 module.exports = Writer;
 
-},{"./errors":99,"./types":102,"__browserify_Buffer":67,"assert":24}],104:[function(require,module,exports){
+},{"./errors":101,"./types":104,"__browserify_Buffer":68,"assert":25}],106:[function(require,module,exports){
 // Copyright 2011 Mark Cavage <mcavage@gmail.com> All rights reserved.
 
 // If you have no idea what ASN.1 or BER is, see this:
@@ -46981,7 +49156,7 @@ module.exports = {
 
 };
 
-},{"./ber/index":100}],105:[function(require,module,exports){
+},{"./ber/index":102}],107:[function(require,module,exports){
 var process=require("__browserify_process"),Buffer=require("__browserify_Buffer").Buffer;// Copyright (c) 2012, Mark Cavage. All rights reserved.
 
 var assert = require('assert');
@@ -47228,7 +49403,7 @@ Object.keys(assert).forEach(function (k) {
         };
 });
 
-},{"__browserify_Buffer":67,"__browserify_process":68,"assert":24,"stream":31,"util":36}],106:[function(require,module,exports){
+},{"__browserify_Buffer":68,"__browserify_process":69,"assert":25,"stream":32,"util":37}],108:[function(require,module,exports){
 /*
  * ctf.js
  *
@@ -47475,7 +49650,7 @@ function ctfParseJson(json, ctype)
 
 exports.ctfParseJson = ctfParseJson;
 
-},{"assert":24}],107:[function(require,module,exports){
+},{"assert":25}],109:[function(require,module,exports){
 /*
  * rm - Feb 2011
  * ctio.js:
@@ -48962,7 +51137,7 @@ exports.rdouble = rdouble;
 exports.wfloat = wfloat;
 exports.wdouble = wdouble;
 
-},{"assert":24}],108:[function(require,module,exports){
+},{"assert":25}],110:[function(require,module,exports){
 var Buffer=require("__browserify_Buffer").Buffer;/*
  * rm - Feb 2011
  * ctype.js
@@ -49908,7 +52083,7 @@ exports.rdouble = mod_ctio.rdouble;
 exports.wfloat = mod_ctio.wfloat;
 exports.wdouble = mod_ctio.wdouble;
 
-},{"./ctf.js":106,"./ctio.js":107,"__browserify_Buffer":67,"assert":24}],109:[function(require,module,exports){
+},{"./ctf.js":108,"./ctio.js":109,"__browserify_Buffer":68,"assert":25}],111:[function(require,module,exports){
 var stream = require('stream')
 
 
@@ -49937,7 +52112,7 @@ module.exports.isReadable = isReadable
 module.exports.isWritable = isWritable
 module.exports.isDuplex   = isDuplex
 
-},{"stream":31}],110:[function(require,module,exports){
+},{"stream":32}],112:[function(require,module,exports){
 module.exports = stringify;
 
 function getSerialize (fn, decycle) {
@@ -49978,7 +52153,7 @@ function stringify(obj, fn, spaces, decycle) {
 
 stringify.getSerialize = getSerialize;
 
-},{}],111:[function(require,module,exports){
+},{}],113:[function(require,module,exports){
 
 var db = require('mime-db')
 
@@ -50043,7 +52218,7 @@ exports.contentType = function (type) {
   return type
 }
 
-},{"mime-db":113}],112:[function(require,module,exports){
+},{"mime-db":115}],114:[function(require,module,exports){
 module.exports={
   "application/1d-interleaved-parityfec": {
     "source": "iana"
@@ -56338,7 +58513,7 @@ module.exports={
   }
 }
 
-},{}],113:[function(require,module,exports){
+},{}],115:[function(require,module,exports){
 /*!
  * mime-db
  * Copyright(c) 2014 Jonathan Ong
@@ -56351,7 +58526,7 @@ module.exports={
 
 module.exports = require('./db.json')
 
-},{"./db.json":112}],114:[function(require,module,exports){
+},{"./db.json":114}],116:[function(require,module,exports){
 //     uuid.js
 //
 //     Copyright (c) 2010-2012 Robert Kieffer
@@ -56598,7 +58773,7 @@ module.exports = require('./db.json')
   }
 }).call(this);
 
-},{}],115:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 var crypto = require('crypto')
   , qs = require('querystring')
   ;
@@ -56731,10 +58906,10 @@ exports.plaintext = plaintext
 exports.sign = sign
 exports.rfc3986 = rfc3986
 
-},{"crypto":41,"querystring":30}],116:[function(require,module,exports){
+},{"crypto":42,"querystring":31}],118:[function(require,module,exports){
 module.exports = require('./lib/');
 
-},{"./lib/":117}],117:[function(require,module,exports){
+},{"./lib/":119}],119:[function(require,module,exports){
 // Load modules
 
 var Stringify = require('./stringify');
@@ -56751,7 +58926,7 @@ module.exports = {
     parse: Parse
 };
 
-},{"./parse":118,"./stringify":119}],118:[function(require,module,exports){
+},{"./parse":120,"./stringify":121}],120:[function(require,module,exports){
 // Load modules
 
 var Utils = require('./utils');
@@ -56910,7 +59085,7 @@ module.exports = function (str, options) {
     return Utils.compact(obj);
 };
 
-},{"./utils":120}],119:[function(require,module,exports){
+},{"./utils":122}],121:[function(require,module,exports){
 // Load modules
 
 var Utils = require('./utils');
@@ -56989,7 +59164,7 @@ module.exports = function (obj, options) {
     return keys.join(delimiter);
 };
 
-},{"./utils":120}],120:[function(require,module,exports){
+},{"./utils":122}],122:[function(require,module,exports){
 // Load modules
 
 
@@ -57123,7 +59298,7 @@ exports.isBuffer = function (obj) {
         obj.constructor.isBuffer(obj));
 };
 
-},{}],121:[function(require,module,exports){
+},{}],123:[function(require,module,exports){
 var Buffer=require("__browserify_Buffer").Buffer;var util = require('util')
 var Stream = require('stream')
 var StringDecoder = require('string_decoder').StringDecoder
@@ -57227,7 +59402,7 @@ function alignedWrite(buffer) {
   return returnBuffer.toString(this.encoding)
 }
 
-},{"__browserify_Buffer":67,"stream":31,"string_decoder":32,"util":36}],122:[function(require,module,exports){
+},{"__browserify_Buffer":68,"stream":32,"string_decoder":33,"util":37}],124:[function(require,module,exports){
 /*
  * Copyright GoInstant, Inc. and other contributors. All rights reserved.
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -58336,7 +60511,7 @@ module.exports = {
   canonicalDomain: canonicalDomain,
 };
 
-},{"./memstore":123,"./pubsuffix":124,"./store":125,"net":28,"punycode":50,"url":35}],123:[function(require,module,exports){
+},{"./memstore":125,"./pubsuffix":126,"./store":127,"net":29,"punycode":51,"url":36}],125:[function(require,module,exports){
 'use strict';
 var tough = require('./cookie');
 var Store = require('./store').Store;
@@ -58461,7 +60636,7 @@ MemoryCookieStore.prototype.removeCookies = function removeCookies(domain, path,
   return cb(null);
 };
 
-},{"./cookie":122,"./store":125,"util":36}],124:[function(require,module,exports){
+},{"./cookie":124,"./store":127,"util":37}],126:[function(require,module,exports){
 /****************************************************
  * AUTOMATICALLY GENERATED by generate-pubsuffix.js *
  *                  DO NOT EDIT!                    *
@@ -58532,7 +60707,7 @@ var index = module.exports.index = Object.freeze(
 
 // END of automatically generated file
 
-},{}],125:[function(require,module,exports){
+},{}],127:[function(require,module,exports){
 'use strict';
 /*jshint unused:false */
 
@@ -58571,7 +60746,7 @@ Store.prototype.removeCookies = function removeCookies(domain, path, cb) {
   throw new Error('removeCookies is not implemented');
 };
 
-},{}],126:[function(require,module,exports){
+},{}],128:[function(require,module,exports){
 var process=require("__browserify_process"),Buffer=require("__browserify_Buffer").Buffer;'use strict'
 
 var net = require('net')
@@ -58809,7 +60984,7 @@ if (process.env.NODE_DEBUG && /\btunnel\b/.test(process.env.NODE_DEBUG)) {
 }
 exports.debug = debug // for test
 
-},{"__browserify_Buffer":67,"__browserify_process":68,"assert":24,"events":25,"http":46,"https":27,"net":28,"tls":34,"util":36}],127:[function(require,module,exports){
+},{"__browserify_Buffer":68,"__browserify_process":69,"assert":25,"events":26,"http":47,"https":28,"net":29,"tls":35,"util":37}],129:[function(require,module,exports){
 var process=require("__browserify_process"),Buffer=require("__browserify_Buffer").Buffer;'use strict'
 
 var http = require('http')
@@ -60484,7 +62659,7 @@ Request.defaultProxyHeaderExclusiveList =
 Request.prototype.toJSON = requestToJSON
 module.exports = Request
 
-},{"./lib/auth":71,"./lib/cookies":72,"./lib/copy":73,"./lib/getProxyFromURI":74,"./lib/helpers":75,"./lib/oauth":76,"__browserify_Buffer":67,"__browserify_process":68,"aws-sign2":77,"bl":78,"caseless":87,"combined-stream":88,"forever-agent":90,"form-data":91,"hawk":93,"http":46,"http-signature":94,"https":27,"isstream":109,"mime-types":111,"net":28,"node-uuid":114,"qs":116,"querystring":30,"stream":31,"stringstream":121,"tunnel-agent":126,"url":35,"util":36,"zlib":51}],128:[function(require,module,exports){
+},{"./lib/auth":73,"./lib/cookies":74,"./lib/copy":75,"./lib/getProxyFromURI":76,"./lib/helpers":77,"./lib/oauth":78,"__browserify_Buffer":68,"__browserify_process":69,"aws-sign2":79,"bl":80,"caseless":89,"combined-stream":90,"forever-agent":92,"form-data":93,"hawk":95,"http":47,"http-signature":96,"https":28,"isstream":111,"mime-types":113,"net":29,"node-uuid":116,"qs":118,"querystring":31,"stream":32,"stringstream":123,"tunnel-agent":128,"url":36,"util":37,"zlib":52}],130:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -60529,5 +62704,5 @@ function ws(uri, protocols, opts) {
 
 if (WebSocket) ws.prototype = WebSocket.prototype;
 
-},{}]},{},[9])
+},{}]},{},[10])
 ;
