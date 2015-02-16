@@ -28540,14 +28540,22 @@ function Actor () {
 
 /* Static methods */
 
-Actor.properties = ['profile', 'keys', 'relationships'];
+Actor.properties = ['profile', 'keys', 'relationships', 'id'];
 
-Actor.fromObject = function(obj) {
+Actor.fromObject = function (obj) {
   var actor = new this();
   this.properties.forEach(function(prop) {
     actor[prop] = obj[prop];
   });
   return actor;
+};
+
+Actor.toObject = function (actor) {
+  var obj = {};
+  this.properties.forEach(function(prop) {
+    obj[prop] = actor[prop];
+  });
+  return obj;
 };
 
 Actor.create = function (cbs) {
@@ -28882,6 +28890,12 @@ Card.deconstructField = function (fieldSchema) {
   }
 
   return { children: children, annotations: annotations };
+};
+
+Card.normalizeField = function (field) {
+  var path = Card.getPathForField(field);
+  var scope = path.organization.split('.').reverse();
+  return scope.concat(path.hierarchy).join('.');
 };
 
 Card.getChildren = function (fieldSchema) {
@@ -29232,6 +29246,7 @@ User.prototype = Object.create(Actor.prototype);
 
 User.properties = Actor.properties.concat(['identifiers']);
 User.fromObject = Actor.fromObject;
+User.toObject = Actor.toObject;
 
 User.create = function (identifier /* { identifier, type } */, password, cbs) {
   var user  = new User(identifier);
