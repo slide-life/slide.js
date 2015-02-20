@@ -62,6 +62,16 @@ describe('User', function () {
     });
   });
 
+  describe('#getByIdentifier()', function () {
+    it.skip('should get a user by identifier', function (done) { //test does not work because SMS_TEST_NUMBER not verified as of test.
+      Slide.User.getByIdentifier(new Slide.Identifier.Phone(SMS_TEST_NUMBER), {
+        success: function (testUser) {
+          assert.equal(testUser.id, user.id);
+          done();
+        }
+      });
+    });
+  });
 
   describe('.verifyIdentifier()', function () {
     it.skip('should verify the identifier that the user has signed up wih', function (done) {

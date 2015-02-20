@@ -1,8 +1,76 @@
 var assert = require('assert');
 var Slide = require('../../lib/slide');
+var Initializers = require('./_initializers');
 
 describe('Vendor', function () {
+  var vendor;
+
   before(function (done) {
+    Initializers.vendor(function (v) {
+      vendor = v;
+      done();
+    });
+  });
+
+  describe('#create()', function () {
+    it('should create a vendor', function (done) {
+      Initializers.vendor(function (v) {
+        assert.equal(v.name, Initializers.VENDOR_NAME);
+        done();
+      });
+    });
+  });
+
+  describe('.createForm()', function () {
+    it('should create a form', function (done) {
+      vendor.createForm('test', 'test', ['d.d:phone-number'], {
+        success: function (form) {
+          assert(form.id);
+          done();
+        }
+      });
+    });
+  });
+
+  describe('.getForms()', function () {
+    it('should get forms', function (done) {
+      vendor.createForm('test', 'test', ['d.d:phone-number'], {
+        success: function (form) {
+          vendor.getForms({
+            success: function (forms) {
+              assert.notEqual(forms.length, 0);
+              done();
+            }
+          });
+        }
+      });
+    });
+  });
+
+  describe('.getResponses()', function () {
+    it('should get responses to forms', function (done) {
+      Initializers.user(function (user) {
+        Initializers.converse(user, vendor, function (conversation) {
+          conversation.request(user, ['d.d:phone-number'], {
+            success: function (request) {
+              conversation.respond(request, {
+                'd.d:phone-number': 'test'
+              }, {
+                success: function (response) {
+                  vendor.getAllResponses({
+                    success: function (data) {
+                      var responses = data.responses[0];
+                      assert.equal(responses['d.d:phone-number'], 'test');
+                      done();
+                    }
+                  });
+                }
+              });
+            }
+          });
+        });
+      });
+    });
   });
 });
 
