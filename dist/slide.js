@@ -29733,6 +29733,22 @@ exports = module.exports = {
 },{"./crypto/aes":17,"./crypto/rsa":19,"node-forge":71}],17:[function(require,module,exports){
 var base64 = require('./base64');
 
+function performOnLeaves (struct, fn) {
+  if (typeof struct != 'object') {
+    return fn(struct);
+  } else if (Array.isArray(struct)) {
+    return struct.map(function (s) {
+      return performOnLeaves(s, fn);
+    });
+  } else {
+    var mapped = {};
+    for (var k in struct) {
+      mapped[k] = performOnLeaves(struct[k], fn);
+    }
+    return mapped;
+  }
+}
+
 exports = module.exports = function (forge) {
   return {
     /* Key generation */
@@ -29785,19 +29801,17 @@ exports = module.exports = function (forge) {
     },
 
     decryptData: function(data, key) {
-      var clean = {};
-      for( var k in data ) {
-        clean[k] = this.decrypt(base64.decode(data[k]), key);
-      }
-      return clean;
+      var self = this;
+      return performOnLeaves(data, function (value) {
+        return self.decrypt(base64.decode(value), key);
+      });
     },
 
-    encryptData: function(data, key) { //TODO: rewrite this for recursion
-      var encrypted = {};
-      for( var k in data ) {
-        encrypted[k] = base64.encode(this.encrypt(data[k], key));
-      }
-      return encrypted;
+    encryptData: function(data, key) {
+      var self = this;
+      return performOnLeaves(data, function (value) {
+        return base64.encode(self.encrypt(value, key));
+      });
     }
   };
 };
