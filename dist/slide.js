@@ -28649,6 +28649,7 @@ Actor.prototype.getRelationships = function (cbs) {
   var self = this;
   API.get('/actors/' + this.id + '/relationships', {
     success: function(relationships) {
+      console.log('actor rs', relationships.length);
       cbs.success(relationships.map(self._renderRelationship.bind(self)).map(function(r) {
         r.actor = self;
         // TODO: may be right or left
@@ -29185,6 +29186,7 @@ Message.fromObject = function (obj) {
   if (obj.message_type === 'request') {
     message = new Request();
     message.blocks = obj.blocks;
+    message.read = obj.read;
   } else if (obj.message_type === 'deposit') {
     message = new Deposit();
     message.data = obj.data;
@@ -29229,7 +29231,7 @@ Relationship.get = function (id, cbs) {
   });
 };
 
-Relationship.inlineReferences = function (relationship, cb) {
+Relationship.inlineReferences = function (relationship, conversations, requests, cb) {
   // NB: Avoids circular reference.
   var Actor = require('./actor');
   var gotRight = function (left, right) {
@@ -29244,6 +29246,11 @@ Relationship.inlineReferences = function (relationship, cb) {
       failure: right
     });
   };
+  requests = requests.filter(function (r) {
+    return !r.read;
+  });
+  relationship.conversations = conversations;
+  relationship.requests = requests;
   Actor.get(relationship.leftId, {
     success: gotLeft,
     failure: gotLeft
