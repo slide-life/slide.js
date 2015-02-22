@@ -28647,7 +28647,12 @@ Actor.prototype.getRelationships = function (cbs) {
   var self = this;
   API.get('/actors/' + this.id + '/relationships', {
     success: function(relationships) {
-      cbs.success(relationships.map(self._renderRelationship.bind(self)));
+      cbs.success(relationships.map(self._renderRelationship.bind(self)).map(function(r) {
+        r.actor = self;
+        // TODO: may be right or left
+        r.key = r.actor.decryptKey(r.rightKey);
+        return r;
+      }));
     },
     failure: cbs.failure
   });
@@ -28971,14 +28976,15 @@ Conversation.fromObject = function (obj) {
 
 Conversation.prototype.getRelationship = function (cbs) {
   var self = this;
+  var Relationship = require('./relationship');
 
   if (this.relationship) {
     cbs.success(this.relationship);
   } else {
     API.get('/relationships/' + this.relationshipId, {
       success: function (relationship) {
-        self.relationship = relationship;
-        cbs.success(relationship);
+        self.relationship = Relationship.fromObject(relationship);
+        cbs.success(self.relationship);
       },
       failure: cbs.failure
     })
@@ -28989,13 +28995,17 @@ Conversation.get = function (id) {
   // TODO
 };
 
-Conversation.prototype.getMessages = function(cbs) {
+Conversation.prototype.getMessages = function(types, cbs) {
   // Maybe TODO
+  var self = this;
   API.get('/relationships/'+ this.relationshipId +'/conversations/' + this.id + '/messages',
     { success: function(ms) {
        cbs.success(ms.filter(function(m) {
-         return m.message_type == 'request';
-       }).map(Message.fromObject));
+         return types.indexOf(m.message_type) != -1;
+       }).map(Message.fromObject).map(function (m) {
+         m.conversation = self;
+         return m;
+       }));
      },
      failure: cbs.failure });
 };
@@ -29066,7 +29076,7 @@ Conversation.prototype.deposit = function (to, data, cbs) {
 
 exports = module.exports = Conversation;
 
-},{"../utils/api":12,"../utils/crypto":16,"./message":7}],4:[function(require,module,exports){
+},{"../utils/api":12,"../utils/crypto":16,"./message":7,"./relationship":8}],4:[function(require,module,exports){
 var API = require('../utils/api');
 
 var Vendor = require('./vendor');
@@ -29223,11 +29233,9 @@ Relationship.inlineReferences = function (relationship, cb) {
   var gotRight = function (left, right) {
     relationship.left = left;
     relationship.right = right;
-    console.log('gotR');
     cb(relationship);
   };
   var gotLeft = function (left) {
-    console.log('gotL');
     var right = gotRight.bind({}, left);
     Actor.get(relationship.rightId, {
       success: right,
@@ -29241,9 +29249,13 @@ Relationship.inlineReferences = function (relationship, cb) {
 };
 
 Relationship.prototype.getConversations = function (cbs) {
+  var self = this;
   API.get('/relationships/' + this.id + '/conversations', {
     success: function (conversations) {
-      cbs.success(conversations.map(Conversation.fromObject));
+      cbs.success(conversations.map(Conversation.fromObject).map(function (c) {
+        c.relationship = self;
+        return c;
+      }));
     },
     failure: cbs.failure
   });
