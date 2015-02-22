@@ -28989,8 +28989,10 @@ Conversation.get = function (id) {
   // TODO
 };
 
-Conversation.prototype.getMessages = function() {
+Conversation.prototype.getMessages = function(cbs) {
   // Maybe TODO
+  API.get('/relationships/'+ this.relationshipId +'/conversations/' + this.id + '/messages',
+    cbs);
 };
 
 Conversation.prototype.request = function (to, blocks, cbs) {
@@ -29294,6 +29296,7 @@ Relationship.prototype.createConversation = function (name, cbs) {
 };
 
 exports = module.exports = Relationship;
+
 
 },{"../utils/api":12,"../utils/crypto":16,"./actor":1,"./conversation":3,"./message":7}],9:[function(require,module,exports){
 var API = require('../utils/api');
