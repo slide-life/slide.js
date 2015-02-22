@@ -28992,7 +28992,12 @@ Conversation.get = function (id) {
 Conversation.prototype.getMessages = function(cbs) {
   // Maybe TODO
   API.get('/relationships/'+ this.relationshipId +'/conversations/' + this.id + '/messages',
-    cbs);
+    { success: function(ms) {
+       cbs.success(ms.filter(function(m) {
+         return m.message_type == 'request';
+       }).map(Message.fromObject));
+     },
+     failure: cbs.failure });
 };
 
 Conversation.prototype.request = function (to, blocks, cbs) {
@@ -29294,6 +29299,7 @@ Relationship.prototype.createConversation = function (name, cbs) {
     failure: cbs.failure
   });
 };
+
 
 exports = module.exports = Relationship;
 
