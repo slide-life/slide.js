@@ -28547,6 +28547,7 @@ Actor.fromObject = function (obj) {
   this.properties.forEach(function(prop) {
     actor[prop] = obj[prop];
   });
+  actor.keys = actor.keys || { public: obj.key };
   return actor;
 };
 
@@ -28556,6 +28557,10 @@ Actor.toObject = function (actor) {
     obj[prop] = actor[prop];
   });
   return obj;
+};
+
+Actor.prototype.toObject = function() {
+  return this.constructor.toObject(this);
 };
 
 Actor.create = function (cbs) {
@@ -28635,7 +28640,7 @@ Actor.prototype._renderRelationship = function (relationship) {
       relationship.key = self.decryptKey(relationship.rightKey);
     }
   }
-  return relationship;
+  return Relationship.fromObject(relationship);
 };
 
 Actor.prototype.getRelationships = function (cbs) {
@@ -28980,6 +28985,14 @@ Conversation.prototype.getRelationship = function (cbs) {
   }
 };
 
+Conversation.get = function (id) {
+  // TODO
+};
+
+Conversation.prototype.getMessages = function() {
+  // Maybe TODO
+};
+
 Conversation.prototype.request = function (to, blocks, cbs) {
   API.post('/relationships/' + this.relationshipId + '/conversations/' + this.id + '/requests', {
     data: {
@@ -29180,8 +29193,8 @@ function Relationship () { }
 Relationship.fromObject = function (obj) {
   var relationship = new Relationship();
   relationship.id = obj.id;
-  relationship.leftId = obj.left;
-  relationship.rightId = obj.right;
+  relationship.leftId = obj.left_id;
+  relationship.rightId = obj.right_id;
   relationship.leftKey = obj.left_key;
   relationship.rightKey = obj.right_key;
   relationship.conversations = (obj.conversations || []).map(Conversation.fromObject);
@@ -29203,16 +29216,18 @@ Relationship.inlineReferences = function (relationship, cb) {
   var gotRight = function (left, right) {
     relationship.left = left;
     relationship.right = right;
+    console.log('gotR');
     cb(relationship);
   };
   var gotLeft = function (left) {
+    console.log('gotL');
     var right = gotRight.bind({}, left);
-    Actor.get(relationship.right_id, {
+    Actor.get(relationship.rightId, {
       success: right,
       failure: right
     });
   };
-  Actor.get(relationship.left_id, {
+  Actor.get(relationship.leftId, {
     success: gotLeft,
     failure: gotLeft
   });
@@ -29371,60 +29386,51 @@ exports = module.exports = User;
 },{"../utils/api":12,"../utils/crypto":16,"./actor":1,"./identifier":5}],10:[function(require,module,exports){
 var API = require('../utils/api');
 var Crypto = require('../utils/crypto');
+var Form = require('./form');
 
 var Actor = require('./actor');
 var Card = require('./card');
-var Form = require('./form');
 
-function Vendor () {
+function Vendor (id) {
   this.profile      = this._generateProfile();
   this.keys         = this._generateKeys();
+  this.id           = id;
 };
 
 Vendor.prototype = Object.create(Actor.prototype);
 
 Vendor.fromObject = function (obj) {
-  var vendor = new Vendor();
-  vendor.id = obj.id;
-  vendor.keys = {};
-  vendor.keys.public = obj.key;
+  var vendor = new Vendor(obj.id);
+  vendor.keys = obj.keys || {};
+  vendor.keys.public = vendor.keys.public || obj.key;
   vendor.card = Card.fromObject(obj);
   return vendor;
 };
 
-Vendor.prototype.toObject = function () {
-  var obj = {};
-
-  [
-    'id',
-    'keys',
-    'profile',
-    'relationships',
-    'name',
-    'domain'
-  ].forEach(function (prop) {
-    obj[prop] = this[prop];
+Vendor.invite = function (name, domain, cbs) {
+  API.post('/admin/vendors', {
+    data: {
+      name: name,
+      domain: domain
+    },
+    success: cbs.success,
+    failure: cbs.failure
   });
-
-  obj.schema = this.card.schema;
-
-  return obj;
 };
 
 Vendor.create = function (name, domain, schema, cbs) {
-  var vendor = new Vendor();
+  var keys = new Vendor().keys;
   API.post('/vendors', {
     data: {
-      name: name,
       domain: domain,
+      key: keys.public,
       schema: schema,
-      key: vendor.keys.public
+      name: name
     },
     success: function (v) {
-      vendor.id = v.id;
-      vendor.name = v.name;
-      vendor.domain = v.domain;
-      vendor.card = Card.fromObject(v);
+      // vendor.apiKey = apiKey;
+      var vendor = Vendor.fromObject(v);
+      vendor.keys = keys;
       cbs.success(vendor);
     },
     failure: cbs.failure
@@ -29443,19 +29449,23 @@ Vendor.getByDomain = function (domain, cbs) {
   });
 };
 
+Vendor.prototype.getForms = function (cbs) {
+  API.get('/vendors/' + this.id + '/forms', cbs);
+};
+
 Vendor.prototype.createForm = function (name, description, fields, cbs) {
-  API.post('/vendors/' + this.id + '/forms', {
-    data: {
-      name: name,
-      description: description,
-      form_fields: fields
-    },
-    success: function (f) {
-      var form = Form.fromObject(f);
-      cbs.success(form);
-    },
-    failure: cbs.failure
-  });
+ API.post('/vendors/' + this.id + '/forms', {
+   data: {
+     name: name,
+     description: description,
+     form_fields: fields
+   },
+   success: function (f) {
+     var form = Form.fromObject(f);
+     cbs.success(form);
+   },
+   failure: cbs.failure
+ });
 };
 
 Vendor.prototype.getForms = function (cbs) {
@@ -29521,7 +29531,7 @@ if( env.TARGET == 'browser' ) {
 
 },{"./models/actor":1,"./models/card":2,"./models/identifier":5,"./models/relationship":8,"./models/user":9,"./models/vendor":10}],12:[function(require,module,exports){
 var API;
-if( typeof module === 'undefined' ) {
+if (env.TARGET == 'browser') {
   API = require('./api/browser.js');
 } else {
   API = require('./api/node.js');
