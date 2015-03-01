@@ -24,6 +24,47 @@ describe('Actor', function () {
     });
   });
 
+  describe('.loadRelationship()', function () {
+    var otherActor1, otherActor2;
+
+    before(function (done) {
+      Slide.Actor.create({
+        success: function (a) {
+          otherActor1 = a;
+          Slide.Actor.create({
+            success: function (b) {
+              otherActor2 = b;
+              done();
+            }
+          });
+        }
+      });
+    });
+
+    it('should create a new relationship where none exists', function (done) {
+      actor.loadRelationship(otherActor1, {
+        success: function (relationship) {
+          assert(relationship);
+          assert(relationship.id);
+          done();
+        }
+      });
+    });
+
+    it('should load an existing relationship', function (done) {
+      actor.createRelationship(otherActor2, {
+        success: function (relationship) {
+          actor.loadRelationship(otherActor2, {
+            success: function (loaded) {
+              assert.equal(relationship.id, loaded.id);
+              done();
+            }
+          });
+        }
+      });
+    });
+  });
+
   describe('.listen()', function () {
     var anotherActor, relationship;
 

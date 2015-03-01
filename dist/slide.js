@@ -28599,6 +28599,14 @@ Actor.prototype._generateKeys = function () {
   };
 };
 
+Actor.prototype._classIdentifier = function () {
+  return 'actors';
+};
+
+Actor.prototype._endpoint = function (str) {
+  return '/' + this._classIdentifier() + '/' + this.id + (str || '');
+};
+
 Actor.prototype.encryptKey = function (key) {
   return Crypto.RSA.encryptSymmetricKey(key, this.keys.public);
 };
@@ -28614,10 +28622,10 @@ Actor.prototype.createRelationship = function (actor, cbs) {
   var myKey = this.encryptKey(key);
   API.post('/relationships', {
     data: {
-      current_user_temp: this.id, // TODO: use API authentication
-      current_user_key: myKey,
+      currentUserTemp: this.id, // TODO: use API authentication
+      currentUserKey: myKey,
       actor: actor.id,
-      actor_key: otherKey
+      actorKey: otherKey
     },
     success: function (rel) {
       var relationship   = Relationship.fromObject(rel);
@@ -28630,6 +28638,27 @@ Actor.prototype.createRelationship = function (actor, cbs) {
       cbs.success(relationship);
     },
     failure: cbs.failure
+  });
+};
+
+Actor.prototype.getRelationshipWith = function (actor, cbs) {
+  var self = this;
+  API.get(this._endpoint('/relationships/with/' + actor.id), { //TODO: create endpoint
+    success: function (rel) {
+      var relationship = self._renderRelationship(rel);
+      cbs.success(relationship);
+    },
+    failure: cbs.failure
+  });
+};
+
+Actor.prototype.loadRelationship = function (actor, cbs) {
+  var self = this;
+  this.getRelationshipWith(actor, {
+    success: cbs.success,
+    failure: function () {
+      self.createRelationship(actor, cbs);
+    }
   });
 };
 
@@ -28647,13 +28676,12 @@ Actor.prototype._renderRelationship = function (relationship) {
 
 Actor.prototype.getRelationships = function (cbs) {
   var self = this;
-  API.get('/actors/' + this.id + '/relationships', {
+  API.get(this._endpoint('/relationships'), {
     success: function(relationships) {
-      console.log('actor rs', relationships.length);
       cbs.success(relationships.map(self._renderRelationship.bind(self)).map(function(r) {
-        r.actor = self;
-        // TODO: may be right or left
-        r.key = r.actor.decryptKey(r.rightKey);
+        // TODO: check correctness of decryption without the following block
+        // r.actor = self;
+        // r.key = r.actor.decryptKey(r.rightKey);
         return r;
       }));
     },
@@ -28678,7 +28706,7 @@ Actor.prototype.getRelationship = function (relationshipId, cbs) {
 
 Actor.prototype.patch = function (profile, cbs) {
   var self = this;
-  API.patch('/actors/' + this.id, {
+  API.patch(this._endpoint(), {
     data: {
       profile: profile
     },
@@ -28693,7 +28721,7 @@ Actor.prototype.patch = function (profile, cbs) {
 Actor.prototype.listen = function (onmessage) {
   var self = this;
 
-  var socket = API.socket('/actors/' + this.id + '/listen');
+  var socket = API.socket(this._endpoint('/listen'));
   socket.onmessage = function (event) {
     var parsedEvent           = JSON.parse(event.data);
     var relationshipId        = parsedEvent.relationship.id;
@@ -28708,7 +28736,7 @@ Actor.prototype.listen = function (onmessage) {
 };
 
 Actor.prototype.addListener = function (listener, cbs) {
-  API.post('/actors/' + this.id + '/listeners', {
+  API.post(this._endpoint('/listeners'), {
     data: listener,
     success: cbs.success,
     failure: cbs.failure
@@ -28973,8 +29001,22 @@ Conversation.fromObject = function (obj) {
   var conversation = new Conversation();
   conversation.id = obj.id;
   conversation.name = obj.name;
-  conversation.relationshipId = obj.relationship_id;
+  conversation.relationshipId = obj.relationshipId;
   return conversation;
+};
+
+Conversation.get = function (relationshipId, id, cbs) {
+  API.get('/relationships/' + relationshipId + '/conversations/' + id, {
+    success: function (c) {
+      var conversation = Conversation.fromObject(c);
+      cbs.success(conversation);
+    },
+    failure: cbs.failure
+  });
+};
+
+Conversation.prototype._endpoint = function (str) {
+  return '/relationships/' + this.relationshipId + '/conversations/' + this.id + str;
 };
 
 Conversation.prototype.getRelationship = function (cbs) {
@@ -28994,17 +29036,13 @@ Conversation.prototype.getRelationship = function (cbs) {
   }
 };
 
-Conversation.get = function (id) {
-  // TODO
-};
-
 Conversation.prototype.getMessages = function(types, cbs) {
   // Maybe TODO
   var self = this;
-  API.get('/relationships/'+ this.relationshipId +'/conversations/' + this.id + '/messages',
+  API.get(this._endpoint('/messages'),
     { success: function(ms) {
        cbs.success(ms.filter(function(m) {
-         return types.indexOf(m.message_type) != -1;
+         return types.indexOf(m.messageType) != -1;
        }).map(Message.fromObject).map(function (m) {
          m.conversation = self;
          return m;
@@ -29014,7 +29052,7 @@ Conversation.prototype.getMessages = function(types, cbs) {
 };
 
 Conversation.prototype.request = function (to, blocks, cbs) {
-  API.post('/relationships/' + this.relationshipId + '/conversations/' + this.id + '/requests', {
+  API.post(this._endpoint('/requests'), {
     data: {
       to: to.id, // TODO: will become redundant after authentication
       blocks: blocks
@@ -29035,7 +29073,7 @@ Conversation.prototype.respond = function (request, data, cbs) {
 
   this.getRelationship({
     success: function (relationship) {
-      API.post('/relationships/' + relationship.id + '/conversations/' + self.id + '/requests/' + request.id, {
+      API.post(self._endpoint('/requests/' + request.id), {
         data: {
           data: relationship.encryptData(data)
         },
@@ -29058,7 +29096,7 @@ Conversation.prototype.deposit = function (to, data, cbs) {
 
   this.getRelationship({
     success: function (relationship) {
-      API.post('/relationships/' + relationship.id + '/conversations/' + self.id + '/deposits', {
+      API.post(self._endpoint('/deposits'), {
         data: {
           to: to.id, // TODO: will become redundant after authentication
           data: relationship.encryptData(data)
@@ -29091,14 +29129,14 @@ function Form (name, description, fields) {
 }
 
 Form.fromObject = function (obj) {
-  var form = new Form(obj.name, obj.description, obj.form_fields);
+  var form = new Form(obj.name, obj.description, obj.formFields);
   form.id = obj.id;
   return form;
 };
 
 Form.prototype.toObject = function () {
   return ({
-    form_fields: this.fields,
+    formFields: this.fields,
     name: this.name,
     description: this.description
   });
@@ -29136,16 +29174,20 @@ Identifier.Email = Email;
 
 Identifier.fromObject = function (obj) {
   var identifier;
-  if (obj.identifier_type === 'phone') {
+  if (obj.identifierType === 'phone') {
     identifier = new Phone();
-  } else if (obj.identifier_type === 'email') {
+  } else if (obj.identifierType === 'email') {
     identifier = new Email();
   }
 
   identifier.value = obj.value;
   identifier.id = obj.id;
-  identifier.userId = obj.user_id;
+  identifier.userId = obj.userId;
   return identifier;
+};
+
+Identifier.prototype._endpoint = function (str) {
+  return '/identifiers/' + this.id + str;
 };
 
 exports = module.exports = Identifier;
@@ -29155,9 +29197,9 @@ function Listener () { }
 
 Listener.buildWebhook = function (scope, url, method) {
   var listener = new Listener();
-  listener.relationship_id = scope.relationshipId;
-  listener.conversation_id = scope.conversationId;
-  listener.message_type = scope.messageType;
+  listener.relationshipId = scope.relationshipId;
+  listener.conversationId = scope.conversationId;
+  listener.messageType = scope.messageType;
   listener.url = url;
   listener.method = method;
   return listener;
@@ -29183,20 +29225,21 @@ Message.Deposit = Deposit;
 
 Message.fromObject = function (obj) {
   var message;
-  if (obj.message_type === 'request') {
+
+  if (obj.messageType === 'request') {
     message = new Request();
     message.blocks = obj.blocks;
     message.read = obj.read;
-  } else if (obj.message_type === 'deposit') {
+  } else if (obj.messageType === 'deposit') {
     message = new Deposit();
     message.data = obj.data;
-  } else if (obj.message_type === 'response') {
+  } else if (obj.messageType === 'response') {
     message = new Response();
     message.data = obj.data;
   }
 
   message.id = obj.id;
-  message.conversationId = obj.conversation_id;
+  message.conversationId = obj.conversationId;
 
   return message;
 };
@@ -29214,10 +29257,10 @@ function Relationship () { }
 Relationship.fromObject = function (obj) {
   var relationship = new Relationship();
   relationship.id = obj.id;
-  relationship.leftId = obj.left_id;
-  relationship.rightId = obj.right_id;
-  relationship.leftKey = obj.left_key;
-  relationship.rightKey = obj.right_key;
+  relationship.leftId = obj.leftId;
+  relationship.rightId = obj.rightId;
+  relationship.leftKey = obj.leftKey;
+  relationship.rightKey = obj.rightKey;
   relationship.conversations = (obj.conversations || []).map(Conversation.fromObject);
   return relationship;
 };
@@ -29257,12 +29300,17 @@ Relationship.inlineReferences = function (relationship, conversations, requests,
   });
 };
 
+Relationship.prototype._endpoint = function (str) {
+  return '/relationships/' + this.id + str;
+};
+
 Relationship.prototype.getConversations = function (cbs) {
   var self = this;
-  API.get('/relationships/' + this.id + '/conversations', {
+  API.get(this._endpoint('/conversations'), {
     success: function (conversations) {
       cbs.success(conversations.map(Conversation.fromObject).map(function (c) {
         c.relationship = self;
+        c.relationshipId = self.id;
         return c;
       }));
     },
@@ -29308,13 +29356,14 @@ Relationship.prototype.decryptMessage = function (message) {
 Relationship.prototype.createConversation = function (name, cbs) {
   var self = this;
 
-  API.post('/relationships/' + this.id + '/conversations', {
+  API.post(this._endpoint('/conversations'), {
     data: {
       name: name
     },
     success: function (conv) {
       var conversation = Conversation.fromObject(conv);
       conversation.relationship = self;
+      conversation.relationshipId = self.id;
       cbs.success(conversation);
     },
     failure: cbs.failure
@@ -29338,6 +29387,9 @@ function User (identifier) {
 }
 
 User.prototype = Object.create(Actor.prototype);
+User.prototype._classIdentifier = function () {
+  return 'users';
+};
 
 User.properties = Actor.properties.concat(['identifiers']);
 User.fromObject = Actor.fromObject;
@@ -29364,7 +29416,7 @@ User.getByIdentifier = function (identifier, cbs) {
   API.get('/users', {
     data: {
       identifier: identifier.value,
-      identifier_type: identifier.type
+      identifierType: identifier.type
     },
     success: function (u) {
       var user = User.fromObject(u);
@@ -29375,7 +29427,7 @@ User.getByIdentifier = function (identifier, cbs) {
 };
 
 User.prototype.addDevice = function (type, id, cbs) {
-  API.post('/users/' + this.id + '/devices', {
+  API.post(this._endpoint('/devices'), {
     data: {
       device: {
         id: id,
@@ -29390,7 +29442,7 @@ User.prototype.addDevice = function (type, id, cbs) {
 User.prototype.addIdentifier = function (identifier, cbs) {
   var self = this;
 
-  API.post('/users/' + this.id + '/identifiers', {
+  API.post(this._endpoint('/identifiers'), {
     data: identifier.toObject(),
     success: function (i) {
       var identifier = Identifier.fromObject(i);
@@ -29402,9 +29454,9 @@ User.prototype.addIdentifier = function (identifier, cbs) {
 };
 
 User.prototype.verifyIdentifier = function (identifier, verificationCode, cbs) {
-  API.post('/users/' + this.id + '/identifiers/' + identifier.id + '/verify', {
+  API.post(this._endpoint(identifier._endpoint('/verify')), {
     data: {
-      verification_code: verificationCode
+      verificationCode: verificationCode
     },
     success: cbs.success,
     failure: cbs.failure
@@ -29428,9 +29480,14 @@ function Vendor (id) {
 };
 
 Vendor.prototype = Object.create(Actor.prototype);
+Vendor.prototype._classIdentifier = function () {
+  return 'vendors';
+};
 
 Vendor.fromObject = function (obj) {
   var vendor = new Vendor(obj.id);
+  vendor.name = obj.name;
+  vendor.domain = obj.domain;
   vendor.keys = obj.keys || {};
   vendor.keys.public = vendor.keys.public || obj.key;
   vendor.card = Card.fromObject(obj);
@@ -29479,29 +29536,25 @@ Vendor.getByDomain = function (domain, cbs) {
   });
 };
 
-Vendor.prototype.getForms = function (cbs) {
-  API.get('/vendors/' + this.id + '/forms', cbs);
-};
-
 Vendor.prototype.createForm = function (name, description, fields, cbs) {
- API.post('/vendors/' + this.id + '/forms', {
-   data: {
-     name: name,
-     description: description,
-     form_fields: fields
-   },
-   success: function (f) {
-     var form = Form.fromObject(f);
-     cbs.success(form);
-   },
-   failure: cbs.failure
- });
+  API.post(this._endpoint('/forms'), {
+    data: {
+      name: name,
+      description: description,
+      formFields: fields
+    },
+    success: function (f) {
+      var form = Form.fromObject(f);
+      cbs.success(form);
+    },
+    failure: cbs.failure
+  });
 };
 
 Vendor.prototype.getForms = function (cbs) {
   var self = this;
 
-  API.get('/vendors/' + this.id + '/forms', {
+  API.get(this._endpoint('/forms'), {
     success: function (fs) {
       var forms = fs.map(Form.fromObject);
       forms.forEach(function (f) { f.vendor = self; });
@@ -29514,7 +29567,7 @@ Vendor.prototype.getForms = function (cbs) {
 Vendor.prototype.getResponses = function (query, cbs) {
   var self = this;
 
-  API.get('/vendors/' + this.id + '/responses', {
+  API.get(this._endpoint('/responses'), {
     data: query,
     success: function (encryptedData) {
       var responses = encryptedData.responses;
@@ -34609,8 +34662,8 @@ function Buffer(subject, encoding, offset) {
         break;
 
       default:
-        throw new Error('First argument needs to be a number, ' +
-                        'array or string.');
+        throw new TypeError('First argument needs to be a number, ' +
+                            'array or string.');
     }
 
     // Treat array-ish objects as a byte array.
@@ -34620,7 +34673,10 @@ function Buffer(subject, encoding, offset) {
           this[i] = subject.readUInt8(i);
         }
         else {
-          this[i] = subject[i];
+          // Round-up subject[i] to a UInt8.
+          // e.g.: ((-432 % 256) + 256) % 256 = (-176 + 256) % 256
+          //                                  = 80
+          this[i] = ((subject[i] % 256) + 256) % 256;
         }
       }
     } else if (type == 'string') {
@@ -34801,9 +34857,9 @@ Buffer.prototype.hexWrite = function(string, offset, length) {
     length = strLen / 2;
   }
   for (var i = 0; i < length; i++) {
-    var byte = parseInt(string.substr(i * 2, 2), 16);
-    if (isNaN(byte)) throw new Error('Invalid hex string');
-    this[offset + i] = byte;
+    var b = parseInt(string.substr(i * 2, 2), 16);
+    if (isNaN(b)) throw new Error('Invalid hex string');
+    this[offset + i] = b;
   }
   Buffer._charsWritten = i * 2;
   return i;
@@ -34962,7 +35018,7 @@ Buffer.prototype.fill = function fill(value, start, end) {
 
 // Static methods
 Buffer.isBuffer = function isBuffer(b) {
-  return b instanceof Buffer || b instanceof Buffer;
+  return b instanceof Buffer;
 };
 
 Buffer.concat = function (list, totalLength) {
@@ -35680,16 +35736,46 @@ Buffer.prototype.writeDoubleBE = function(value, offset, noAssert) {
 };
 
 },{"./buffer_ieee754":39,"assert":26,"base64-js":41}],41:[function(require,module,exports){
-(function (exports) {
+var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+;(function (exports) {
 	'use strict';
 
-	var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  var Arr = (typeof Uint8Array !== 'undefined')
+    ? Uint8Array
+    : Array
 
-	function b64ToByteArray(b64) {
-		var i, j, l, tmp, placeHolders, arr;
-	
+	var PLUS   = '+'.charCodeAt(0)
+	var SLASH  = '/'.charCodeAt(0)
+	var NUMBER = '0'.charCodeAt(0)
+	var LOWER  = 'a'.charCodeAt(0)
+	var UPPER  = 'A'.charCodeAt(0)
+	var PLUS_URL_SAFE = '-'.charCodeAt(0)
+	var SLASH_URL_SAFE = '_'.charCodeAt(0)
+
+	function decode (elt) {
+		var code = elt.charCodeAt(0)
+		if (code === PLUS ||
+		    code === PLUS_URL_SAFE)
+			return 62 // '+'
+		if (code === SLASH ||
+		    code === SLASH_URL_SAFE)
+			return 63 // '/'
+		if (code < NUMBER)
+			return -1 //no match
+		if (code < NUMBER + 10)
+			return code - NUMBER + 26 + 26
+		if (code < UPPER + 26)
+			return code - UPPER
+		if (code < LOWER + 26)
+			return code - LOWER + 26
+	}
+
+	function b64ToByteArray (b64) {
+		var i, j, l, tmp, placeHolders, arr
+
 		if (b64.length % 4 > 0) {
-			throw 'Invalid string. Length must be a multiple of 4';
+			throw new Error('Invalid string. Length must be a multiple of 4')
 		}
 
 		// the number of equal signs (place holders)
@@ -35697,73 +35783,83 @@ Buffer.prototype.writeDoubleBE = function(value, offset, noAssert) {
 		// represent one byte
 		// if there is only one, then the three characters before it represent 2 bytes
 		// this is just a cheap hack to not do indexOf twice
-		placeHolders = b64.indexOf('=');
-		placeHolders = placeHolders > 0 ? b64.length - placeHolders : 0;
+		var len = b64.length
+		placeHolders = '=' === b64.charAt(len - 2) ? 2 : '=' === b64.charAt(len - 1) ? 1 : 0
 
 		// base64 is 4/3 + up to two characters of the original data
-		arr = [];//new Uint8Array(b64.length * 3 / 4 - placeHolders);
+		arr = new Arr(b64.length * 3 / 4 - placeHolders)
 
 		// if there are placeholders, only get up to the last complete 4 chars
-		l = placeHolders > 0 ? b64.length - 4 : b64.length;
+		l = placeHolders > 0 ? b64.length - 4 : b64.length
+
+		var L = 0
+
+		function push (v) {
+			arr[L++] = v
+		}
 
 		for (i = 0, j = 0; i < l; i += 4, j += 3) {
-			tmp = (lookup.indexOf(b64[i]) << 18) | (lookup.indexOf(b64[i + 1]) << 12) | (lookup.indexOf(b64[i + 2]) << 6) | lookup.indexOf(b64[i + 3]);
-			arr.push((tmp & 0xFF0000) >> 16);
-			arr.push((tmp & 0xFF00) >> 8);
-			arr.push(tmp & 0xFF);
+			tmp = (decode(b64.charAt(i)) << 18) | (decode(b64.charAt(i + 1)) << 12) | (decode(b64.charAt(i + 2)) << 6) | decode(b64.charAt(i + 3))
+			push((tmp & 0xFF0000) >> 16)
+			push((tmp & 0xFF00) >> 8)
+			push(tmp & 0xFF)
 		}
 
 		if (placeHolders === 2) {
-			tmp = (lookup.indexOf(b64[i]) << 2) | (lookup.indexOf(b64[i + 1]) >> 4);
-			arr.push(tmp & 0xFF);
+			tmp = (decode(b64.charAt(i)) << 2) | (decode(b64.charAt(i + 1)) >> 4)
+			push(tmp & 0xFF)
 		} else if (placeHolders === 1) {
-			tmp = (lookup.indexOf(b64[i]) << 10) | (lookup.indexOf(b64[i + 1]) << 4) | (lookup.indexOf(b64[i + 2]) >> 2);
-			arr.push((tmp >> 8) & 0xFF);
-			arr.push(tmp & 0xFF);
+			tmp = (decode(b64.charAt(i)) << 10) | (decode(b64.charAt(i + 1)) << 4) | (decode(b64.charAt(i + 2)) >> 2)
+			push((tmp >> 8) & 0xFF)
+			push(tmp & 0xFF)
 		}
 
-		return arr;
+		return arr
 	}
 
-	function uint8ToBase64(uint8) {
+	function uint8ToBase64 (uint8) {
 		var i,
 			extraBytes = uint8.length % 3, // if we have 1 byte left, pad 2 bytes
 			output = "",
-			temp, length;
+			temp, length
+
+		function encode (num) {
+			return lookup.charAt(num)
+		}
 
 		function tripletToBase64 (num) {
-			return lookup[num >> 18 & 0x3F] + lookup[num >> 12 & 0x3F] + lookup[num >> 6 & 0x3F] + lookup[num & 0x3F];
-		};
+			return encode(num >> 18 & 0x3F) + encode(num >> 12 & 0x3F) + encode(num >> 6 & 0x3F) + encode(num & 0x3F)
+		}
 
 		// go through the array every three bytes, we'll deal with trailing stuff later
 		for (i = 0, length = uint8.length - extraBytes; i < length; i += 3) {
-			temp = (uint8[i] << 16) + (uint8[i + 1] << 8) + (uint8[i + 2]);
-			output += tripletToBase64(temp);
+			temp = (uint8[i] << 16) + (uint8[i + 1] << 8) + (uint8[i + 2])
+			output += tripletToBase64(temp)
 		}
 
 		// pad the end with zeros, but make sure to not forget the extra bytes
 		switch (extraBytes) {
 			case 1:
-				temp = uint8[uint8.length - 1];
-				output += lookup[temp >> 2];
-				output += lookup[(temp << 4) & 0x3F];
-				output += '==';
-				break;
+				temp = uint8[uint8.length - 1]
+				output += encode(temp >> 2)
+				output += encode((temp << 4) & 0x3F)
+				output += '=='
+				break
 			case 2:
-				temp = (uint8[uint8.length - 2] << 8) + (uint8[uint8.length - 1]);
-				output += lookup[temp >> 10];
-				output += lookup[(temp >> 4) & 0x3F];
-				output += lookup[(temp << 2) & 0x3F];
-				output += '=';
-				break;
+				temp = (uint8[uint8.length - 2] << 8) + (uint8[uint8.length - 1])
+				output += encode(temp >> 10)
+				output += encode((temp >> 4) & 0x3F)
+				output += encode((temp << 2) & 0x3F)
+				output += '='
+				break
 		}
 
-		return output;
+		return output
 	}
 
-	module.exports.toByteArray = b64ToByteArray;
-	module.exports.fromByteArray = uint8ToBase64;
-}());
+	exports.toByteArray = b64ToByteArray
+	exports.fromByteArray = uint8ToBase64
+}(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
 },{}],42:[function(require,module,exports){
 var Buffer = require('buffer').Buffer;
@@ -37344,7 +37440,91 @@ function mix(from, into) {
 }
 
 },{"./copy.js":59,"./create.js":60,"./from.js":61,"./is.js":62,"./join.js":63,"./read.js":65,"./subarray.js":66,"./to.js":67,"./write.js":68}],57:[function(require,module,exports){
-module.exports=require(41)
+(function (exports) {
+	'use strict';
+
+	var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+	function b64ToByteArray(b64) {
+		var i, j, l, tmp, placeHolders, arr;
+	
+		if (b64.length % 4 > 0) {
+			throw 'Invalid string. Length must be a multiple of 4';
+		}
+
+		// the number of equal signs (place holders)
+		// if there are two placeholders, than the two characters before it
+		// represent one byte
+		// if there is only one, then the three characters before it represent 2 bytes
+		// this is just a cheap hack to not do indexOf twice
+		placeHolders = b64.indexOf('=');
+		placeHolders = placeHolders > 0 ? b64.length - placeHolders : 0;
+
+		// base64 is 4/3 + up to two characters of the original data
+		arr = [];//new Uint8Array(b64.length * 3 / 4 - placeHolders);
+
+		// if there are placeholders, only get up to the last complete 4 chars
+		l = placeHolders > 0 ? b64.length - 4 : b64.length;
+
+		for (i = 0, j = 0; i < l; i += 4, j += 3) {
+			tmp = (lookup.indexOf(b64[i]) << 18) | (lookup.indexOf(b64[i + 1]) << 12) | (lookup.indexOf(b64[i + 2]) << 6) | lookup.indexOf(b64[i + 3]);
+			arr.push((tmp & 0xFF0000) >> 16);
+			arr.push((tmp & 0xFF00) >> 8);
+			arr.push(tmp & 0xFF);
+		}
+
+		if (placeHolders === 2) {
+			tmp = (lookup.indexOf(b64[i]) << 2) | (lookup.indexOf(b64[i + 1]) >> 4);
+			arr.push(tmp & 0xFF);
+		} else if (placeHolders === 1) {
+			tmp = (lookup.indexOf(b64[i]) << 10) | (lookup.indexOf(b64[i + 1]) << 4) | (lookup.indexOf(b64[i + 2]) >> 2);
+			arr.push((tmp >> 8) & 0xFF);
+			arr.push(tmp & 0xFF);
+		}
+
+		return arr;
+	}
+
+	function uint8ToBase64(uint8) {
+		var i,
+			extraBytes = uint8.length % 3, // if we have 1 byte left, pad 2 bytes
+			output = "",
+			temp, length;
+
+		function tripletToBase64 (num) {
+			return lookup[num >> 18 & 0x3F] + lookup[num >> 12 & 0x3F] + lookup[num >> 6 & 0x3F] + lookup[num & 0x3F];
+		};
+
+		// go through the array every three bytes, we'll deal with trailing stuff later
+		for (i = 0, length = uint8.length - extraBytes; i < length; i += 3) {
+			temp = (uint8[i] << 16) + (uint8[i + 1] << 8) + (uint8[i + 2]);
+			output += tripletToBase64(temp);
+		}
+
+		// pad the end with zeros, but make sure to not forget the extra bytes
+		switch (extraBytes) {
+			case 1:
+				temp = uint8[uint8.length - 1];
+				output += lookup[temp >> 2];
+				output += lookup[(temp << 4) & 0x3F];
+				output += '==';
+				break;
+			case 2:
+				temp = (uint8[uint8.length - 2] << 8) + (uint8[uint8.length - 1]);
+				output += lookup[temp >> 10];
+				output += lookup[(temp >> 4) & 0x3F];
+				output += lookup[(temp << 2) & 0x3F];
+				output += '=';
+				break;
+		}
+
+		return output;
+	}
+
+	module.exports.toByteArray = b64ToByteArray;
+	module.exports.fromByteArray = uint8ToBase64;
+}());
+
 },{}],58:[function(require,module,exports){
 module.exports = to_utf8
 
