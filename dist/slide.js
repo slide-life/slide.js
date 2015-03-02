@@ -28934,7 +28934,7 @@ Card.deconstructField = function (fieldSchema) {
 Card.normalizeField = function (field) {
   var path = Card.getPathForField(field);
   var scope = path.organization.split('.').reverse();
-  return scope.concat(path.hierarchy).join('.');
+  return scope.concat(path.hierarchy).join('/');
 };
 
 Card.getChildren = function (fieldSchema) {
