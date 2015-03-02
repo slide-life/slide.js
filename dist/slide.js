@@ -29253,6 +29253,7 @@ function Relationship () { }
 Relationship.fromObject = function (obj) {
   var relationship = new Relationship();
   relationship.id = obj.id;
+  relationship.key = obj.key;
   relationship.leftId = obj.leftId;
   relationship.rightId = obj.rightId;
   relationship.leftKey = obj.leftKey;
