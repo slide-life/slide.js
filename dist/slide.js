@@ -28641,24 +28641,20 @@ Actor.prototype.createRelationship = function (actor, cbs) {
   });
 };
 
-Actor.prototype.getRelationshipWith = function (actor, cbs) {
-  var self = this;
-  API.get(this._endpoint('/relationships/with/' + actor.id), { //TODO: create endpoint
-    success: function (rel) {
-      var relationship = self._renderRelationship(rel);
-      cbs.success(relationship);
-    },
-    failure: cbs.failure
-  });
-};
-
 Actor.prototype.loadRelationship = function (actor, cbs) {
   var self = this;
-  this.getRelationshipWith(actor, {
-    success: cbs.success,
-    failure: function () {
-      self.createRelationship(actor, cbs);
-    }
+
+  API.get(this._endpoint('/relationships/with/' + actor.id), {
+    success: function (relWithExists) {
+      if (relWithExists.exists) {
+        var rel = relWithExists.relationship;
+        var relationship = self._renderRelationship(rel);
+        cbs.success(relationship);
+      } else {
+        self.createRelationship(actor, cbs);
+      }
+    },
+    failure: cbs.failure
   });
 };
 
@@ -29257,6 +29253,7 @@ function Relationship () { }
 Relationship.fromObject = function (obj) {
   var relationship = new Relationship();
   relationship.id = obj.id;
+  relationship.key = obj.key;
   relationship.leftId = obj.leftId;
   relationship.rightId = obj.rightId;
   relationship.leftKey = obj.leftKey;
