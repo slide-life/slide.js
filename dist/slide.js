@@ -28542,11 +28542,41 @@ function Actor () {
 
 Actor.properties = ['profile', 'keys', 'relationships', 'id'];
 
+var mapKeys = function (f, profile) {
+  if (profile instanceof Array) {
+    return profile.map(function (ele) {
+      return mapKeys(f, ele);
+    });
+  } else if (profile instanceof Object) {
+    var ret = {};
+    for (key in profile) {
+      ret[f(key)] = mapKeys(f, profile[key]);
+    }
+    return ret;
+  } else {
+    return profile;
+  }
+};
+
+Actor._convertProfileFromClient = function (profile) {
+  return mapKeys(function (key) {
+    return key.replace(/\./g, '/');
+  }, profile);
+};
+
+Actor._convertProfileFromServer = function (profile) {
+  return mapKeys(function (key) {
+    return key.replace(/\//g, '.');
+  }, profile);
+};
+
 Actor.fromObject = function (obj) {
   var actor = new this();
   this.properties.forEach(function(prop) {
     actor[prop] = obj[prop];
   });
+  actor.profile.private = Actor._convertProfileFromServer(actor.profile.private);
+  actor.profile.public = Actor._convertProfileFromServer(actor.profile.public);
   actor.keys = actor.keys || { public: obj.key };
   return actor;
 };
@@ -28556,6 +28586,8 @@ Actor.toObject = function (actor) {
   this.properties.forEach(function(prop) {
     obj[prop] = actor[prop];
   });
+  obj.profile.private = Actor._convertProfileFromClient(actor.profile.private);
+  obj.profile.public = Actor._convertProfileFromClient(actor.profile.public);
   return obj;
 };
 
@@ -28579,6 +28611,20 @@ Actor.create = function (cbs) {
 
 Actor.get = function (id, cbs) {
   API.get('/actors/' + id, cbs);
+};
+
+Actor._clientFormatProfile = function (profile) {
+  return {
+    private: Actor._convertProfileFromServer(profile.private),
+    public: Actor._convertProfileFromServer(profile.public)
+  };
+};
+
+Actor._serverFormatProfile = function (profile) {
+  return ({
+    public: Actor._convertProfileFromClient(profile.public),
+    private: Actor._convertProfileFromClient(profile.private)
+  });
 };
 
 /* Polymorphic methods */
@@ -28704,10 +28750,10 @@ Actor.prototype.patch = function (profile, cbs) {
   var self = this;
   API.patch(this._endpoint(), {
     data: {
-      profile: profile
+      profile: Actor._serverFormatProfile(profile)
     },
     success: function (actor) {
-      self.profile = actor.profile;
+      self.profile = Actor._clientFormatProfile(actor.profile);
       cbs.success(self);
     },
     failure: cbs.failure
@@ -28931,10 +28977,14 @@ Card.deconstructField = function (fieldSchema) {
   return { children: children, annotations: annotations };
 };
 
-Card.normalizeField = function (field) {
+Card.normalizedPath = function (field) {
   var path = Card.getPathForField(field);
   var scope = path.organization.split('.').reverse();
-  return scope.concat(path.hierarchy).join('/');
+  return scope.concat(path.hierarchy);
+};
+
+Card.normalizeField = function (field) {
+  return Card.normalizedPath(field).join('/');
 };
 
 Card.getChildren = function (fieldSchema) {
@@ -28943,6 +28993,22 @@ Card.getChildren = function (fieldSchema) {
 
 Card.getAnnotations = function (fieldSchema) {
   return Card.deconstructField(fieldSchema).annotations;
+};
+
+Card.getDescendants = function (fieldSchema, name) {
+  if (Card.getChildren(fieldSchema).length === 0) {
+    return [name];
+  } else {
+    return Card.getChildren(fieldSchema).map(function (child) {
+      if (fieldSchema[child] instanceof Object) {
+        return [].concat.apply(
+          [], Card.getDescendants(fieldSchema[child], name + '.' + child)
+        );
+      } else {
+        return [];
+      }
+    });
+  }
 };
 
 Card.flattenField = function (field, fieldSchema) {
@@ -28972,6 +29038,8 @@ Card.getSchemasForFields = function (fields, cb) {
   var schemas = {},
     deferreds = [],
     paths     = fields.map(Card.getPathForField);
+
+  if (paths.length === 0) cb({});
 
   paths.forEach(function (path) {
     Card._retrieveField(path, function (fieldSchema) {
@@ -29135,6 +29203,15 @@ Form.prototype.toObject = function () {
     formFields: this.fields,
     name: this.name,
     description: this.description
+  });
+};
+
+Form.prototype.getFlattenedFieldNames = function (cb) {
+  var self = this;
+  Slide.Card.getSchemasForFields(this.fields, function (schemas) {
+    cb([].concat.apply([], self.fields.map(function (field) {
+      return Slide.Card.getDescendants(schemas[field]);
+    })));
   });
 };
 

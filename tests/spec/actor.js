@@ -130,4 +130,23 @@ describe('Actor', function () {
       });
     });
   });
+
+  describe('.patch()', function () {
+    it('should patch the profile and retrieve it', function (done) {
+      actor.patch({
+        private: {
+          'a': [ {
+            'a.b': {
+              'c.d': 'e.f'
+            }
+          } ]
+        }
+      }, {
+        success: function (actor) {
+          assert.equal(actor.profile.private['a'][0]['a.b']['c.d'], 'e.f');
+          done();
+        }
+      });
+    });
+  });
 });
